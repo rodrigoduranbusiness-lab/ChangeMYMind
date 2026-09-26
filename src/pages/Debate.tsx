@@ -1,15 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 
+import {
+  INTERRUPTION_REPORT_COOLDOWN_MS,
+  INTERRUPTIONS_TO_LOSE,
+  USER_MAX_SPEECH_MS,
+} from '@shared/conduct'
 import { DEBATE_DURATION_MS } from '@shared/scoring'
-import { getTopic, sideLabel } from '@shared/topics'
-import type { SessionOutcomeReason, Side, TranscriptEntry } from '@shared/types'
+import { normalizeSessionStatus } from '@shared/rules'
+import { getTopic } from '@shared/topics'
+import type { SessionOutcomeReason, SessionStatus, TranscriptEntry } from '@shared/types'
 import { useAuth } from '../auth/context'
+import { DebateChrome } from '../components/DebateChrome'
+import { SiteShareMark } from '../components/SiteBrand'
 import SpeakingIndicator from '../components/SpeakingIndicator'
 import {
   abandonSessionOnUnload,
   cacheIdToken,
   finalizeSession,
+  prefetchLiveAccess,
+  reportConduct,
   reportPause,
   startSession,
   submitTurn,
@@ -27,10 +37,23 @@ type Phase =
   | 'failed'
   | 'finished'
 
+type DebateVerdict = 'passed' | 'needs_work' | 'lost'
+
 interface Outcome {
-  won: boolean
+  verdict: DebateVerdict
   reason: SessionOutcomeReason | null
+  headlineDetail?: string
 }
+
+function verdictFromStatus(status: SessionStatus | 'won'): DebateVerdict {
+  const normalized = normalizeSessionStatus(status)
+  if (normalized === 'passed') return 'passed'
+  if (normalized === 'needs_work') return 'needs_work'
+  return 'lost'
+}
+
+const CONFIRM_MS = 120
+const WHITEOUT_MS = 180
 
 export default function Debate() {
   const { diagnostic } = useAuth()
@@ -40,9 +63,23 @@ export default function Debate() {
   const [speaker, setSpeaker] = useState<SpeakerState>('idle')
   const [remainingMs, setRemainingMs] = useState(DEBATE_DURATION_MS)
   const [outcome, setOutcome] = useState<Outcome | null>(null)
+  const [conductNotice, setConductNotice] = useState<string | null>(null)
+  const [interruptionStrikes, setInterruptionStrikes] = useState(0)
+  const [userTurnSpeech, setUserTurnSpeech] = useState<{
+    elapsedMs: number
+    maxMs: number
+  } | null>(null)
+  const [turnHintVisible, setTurnHintVisible] = useState(false)
+  const [turnHintProgress, setTurnHintProgress] = useState<{
+    elapsedMs: number
+    maxMs: number
+  } | null>(null)
   const [error, setError] = useState<string | null>(null)
   /** Mirrors sessionIdRef for rendering; the ref is for callbacks and unload. */
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [beginConfirmed, setBeginConfirmed] = useState(false)
+  const [whiteout, setWhiteout] = useState(false)
+  const [whiteOpaque, setWhiteOpaque] = useState(false)
 
   const controllerRef = useRef<DebateController | null>(null)
   const sessionIdRef = useRef<string | null>(null)
@@ -53,17 +90,47 @@ export default function Debate() {
   const endedRef = useRef(false)
   /** Serializes judge calls so turns are never scored out of order. */
   const turnChainRef = useRef<Promise<void>>(Promise.resolve())
+  const exchangeCountRef = useRef(0)
+  const lastInterruptionReportRef = useRef(0)
+
+  useEffect(() => {
+    if (userTurnSpeech) {
+      setTurnHintVisible(true)
+      setTurnHintProgress(userTurnSpeech)
+      return
+    }
+    const hide = window.setTimeout(() => {
+      setTurnHintVisible(false)
+      setTurnHintProgress(null)
+    }, 700)
+    return () => window.clearTimeout(hide)
+  }, [userTurnSpeech])
+  const beginTimers = useRef<ReturnType<typeof setTimeout>[]>([])
 
   const topicId = diagnostic?.assignedTopic
   const topic = topicId ? getTopic(topicId) : null
-  const userLean = topicId ? (diagnostic?.topicLeans?.[topicId] ?? 0) : 0
-  /**
-   * Preview of the side the AI will take. The server is the authority here; it
-   * agrees with this whenever the user actually leans one way. A lean of
-   * exactly zero is a server-side coin flip, so we do not name a side.
-   */
-  const debaterSide: Side = userLean > 0 ? 'left' : 'right'
-  const leanIsKnown = userLean !== 0
+
+  useEffect(() => {
+    return () => {
+      for (const id of beginTimers.current) clearTimeout(id)
+    }
+  }, [])
+
+  // Warm the Live token while they read the allow-mic screen.
+  useEffect(() => {
+    if (phase !== 'intro' && phase !== 'connecting') return
+    prefetchLiveAccess()
+  }, [phase])
+
+  function scheduleBegin(ms: number, next: () => void) {
+    const id = setTimeout(next, ms)
+    beginTimers.current.push(id)
+  }
+
+  function clearWhiteout() {
+    setWhiteOpaque(false)
+    scheduleBegin(WHITEOUT_MS, () => setWhiteout(false))
+  }
 
   // --- ending -------------------------------------------------------------
 
@@ -115,16 +182,16 @@ export default function Debate() {
     controllerRef.current?.cutAudio()
 
     if (!sessionId) {
-      await endDebate({ won: false, reason: 'timeout' })
+      await endDebate({ verdict: 'lost', reason: 'timeout' })
       return
     }
 
     try {
       const result = await finalizeSession(sessionId)
-      await endDebate({ won: result.status === 'won', reason: result.reason })
+      await endDebate({ verdict: verdictFromStatus(result.status), reason: result.reason })
     } catch (caught) {
       console.error('Finalize on timeout failed', caught)
-      await endDebate({ won: false, reason: 'timeout' })
+      await endDebate({ verdict: 'lost', reason: 'timeout' })
     }
   }, [endDebate])
 
@@ -175,6 +242,7 @@ export default function Debate() {
     (turn: { userText: string; aiText: string }) => {
       const now = Date.now()
       if (turn.userText) {
+        exchangeCountRef.current += 1
         transcriptRef.current.push({ speaker: 'user', text: turn.userText, ts: now })
       }
       if (turn.aiText) {
@@ -192,12 +260,96 @@ export default function Debate() {
           if (response.outcome === 'continue') {
             return
           }
-          await endDebate({ won: response.outcome === 'won', reason: response.reason })
+          await endDebate({ verdict: response.outcome, reason: response.reason })
         })
         .catch((caught) => {
           // A dropped judge call must not end the debate.
           console.error('submitTurn failed', caught)
         })
+    },
+    [endDebate],
+  )
+
+  const instantViolationHandledRef = useRef(false)
+
+  const handleInstantSpeechViolation = useCallback(
+    (reason: 'hate_speech' | 'incivility', userText: string) => {
+      const sessionId = sessionIdRef.current
+      if (!sessionId || endedRef.current || instantViolationHandledRef.current || !userText.trim()) {
+        return
+      }
+      instantViolationHandledRef.current = true
+      controllerRef.current?.cutAudio()
+      void (async () => {
+        try {
+          const response = await submitTurn(sessionId, userText, '')
+          if (response.outcome !== 'continue') {
+            await endDebate({ verdict: 'lost', reason: response.reason ?? reason })
+            return
+          }
+        } catch (caught) {
+          console.error('instant speech violation submitTurn failed', caught)
+        }
+        await endDebate({ verdict: 'lost', reason })
+      })()
+    },
+    [endDebate],
+  )
+
+  const handleConduct = useCallback(
+    (kind: 'interruption' | 'long_turn' | 'yelling') => {
+      const sessionId = sessionIdRef.current
+      if (!sessionId || endedRef.current) return
+
+      if (kind === 'interruption' || kind === 'long_turn') {
+        const now = Date.now()
+        if (now - lastInterruptionReportRef.current < INTERRUPTION_REPORT_COOLDOWN_MS) {
+          return
+        }
+        lastInterruptionReportRef.current = now
+      }
+
+      void (async () => {
+        try {
+          const response = await reportConduct(sessionId, kind, exchangeCountRef.current || 1)
+          const { interruptionCount: count, interruptionsLimit: limit } = response
+
+          if (response.outcome === 'continue') {
+            if (kind === 'interruption' || kind === 'long_turn') {
+              setInterruptionStrikes(count)
+            }
+            return
+          }
+
+          if (response.reason === 'interruptions') {
+            const detail = `${count} of ${limit} interruptions.`
+            setInterruptionStrikes(count)
+            setConductNotice(detail)
+            await new Promise((resolve) => window.setTimeout(resolve, 2400))
+            await endDebate({
+              verdict: 'lost',
+              reason: 'interruptions',
+              headlineDetail: detail,
+            })
+            return
+          }
+
+          if (response.reason === 'yelling') {
+            await endDebate({ verdict: 'lost', reason: 'yelling' })
+            return
+          }
+
+          const verdict =
+            response.outcome === 'passed'
+              ? 'passed'
+              : response.outcome === 'needs_work'
+                ? 'needs_work'
+                : 'lost'
+          await endDebate({ verdict, reason: response.reason })
+        } catch (caught) {
+          console.error('reportConduct failed', caught)
+        }
+      })()
     },
     [endDebate],
   )
@@ -246,12 +398,14 @@ export default function Debate() {
     setError(null)
 
     // Ask for the mic before the server starts the clock, so a permission
-    // prompt never eats into the six minutes.
+    // prompt never eats into the debate clock.
     try {
       const probe = await navigator.mediaDevices.getUserMedia({ audio: true })
       probe.getTracks().forEach((track) => track.stop())
     } catch (caught) {
       console.error('Microphone unavailable', caught)
+      clearWhiteout()
+      setBeginConfirmed(false)
       setPhase('micDenied')
       return
     }
@@ -273,6 +427,11 @@ export default function Debate() {
         handlers: {
           onSpeakerChange: setSpeaker,
           onTurnComplete: handleTurn,
+          onInterruption: () => handleConduct('interruption'),
+          onLongTurn: () => handleConduct('long_turn'),
+          onUserTurnSpeech: setUserTurnSpeech,
+          onYelling: () => handleConduct('yelling'),
+          onInstantSpeechViolation: handleInstantSpeechViolation,
           onConnectionLost: handleConnectionLost,
         },
       })
@@ -280,14 +439,37 @@ export default function Debate() {
 
       await controller.start()
       setPhase('live')
+      clearWhiteout()
     } catch (caught) {
       console.error('Failed to start the debate', caught)
-      await failDebate(
-        caught instanceof Error
-          ? caught.message
-          : 'We could not start the debate. Please try again.',
-      )
+      clearWhiteout()
+      setBeginConfirmed(false)
+      await failDebate(describeStartError(caught))
     }
+  }
+
+  function onBeginClick() {
+    if (beginConfirmed || phase !== 'intro') return
+    setBeginConfirmed(true)
+
+    const reduceMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    if (reduceMotion) {
+      void begin()
+      return
+    }
+
+    scheduleBegin(CONFIRM_MS, () => {
+      setWhiteout(true)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setWhiteOpaque(true))
+      })
+      scheduleBegin(WHITEOUT_MS, () => {
+        void begin()
+      })
+    })
   }
 
   // --- render -------------------------------------------------------------
@@ -310,17 +492,14 @@ export default function Debate() {
     )
   }
 
+  // Land on the full results page immediately — no intermediate "See your results" gate.
   if (phase === 'finished' && outcome) {
-    return (
-      <ResultScreen
-        outcome={outcome}
-        onContinue={() => navigate(sessionId ? `/results/${sessionId}` : '/')}
-      />
-    )
+    return <Navigate to={sessionId ? `/results/${sessionId}` : '/'} replace />
   }
 
   if (phase === 'micDenied') {
     return (
+      <DebateChrome>
       <div style={s.page}>
         <div style={s.card}>
           <h1 style={s.heading}>We need your microphone</h1>
@@ -329,17 +508,40 @@ export default function Debate() {
             microphone in your browser's address bar, then try again.
           </p>
           <div style={{ marginTop: 20 }}>
-            <button type="button" onClick={() => setPhase('intro')} style={s.buttonPrimary}>
+            <button
+              type="button"
+              onClick={() => {
+                setBeginConfirmed(false)
+                setPhase('intro')
+              }}
+              style={s.buttonPrimary}
+            >
               Try again
             </button>
           </div>
         </div>
+        {whiteout && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 100,
+              background: '#ffffff',
+              opacity: whiteOpaque ? 1 : 0,
+              transition: `opacity ${WHITEOUT_MS}ms ease`,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
       </div>
+      </DebateChrome>
     )
   }
 
   if (phase === 'failed') {
     return (
+      <DebateChrome>
       <div style={s.page}>
         <div style={s.card}>
           <h1 style={s.heading}>The debate stopped</h1>
@@ -359,181 +561,350 @@ export default function Debate() {
             </button>
           </div>
         </div>
+        {whiteout && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 100,
+              background: '#ffffff',
+              opacity: whiteOpaque ? 1 : 0,
+              transition: `opacity ${WHITEOUT_MS}ms ease`,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
       </div>
+      </DebateChrome>
     )
   }
 
   if (phase === 'intro' || phase === 'connecting') {
     return (
+      <DebateChrome>
       <div style={s.page}>
-        <div style={{ ...s.card, maxWidth: 560 }}>
-          <span style={s.label}>Your topic</span>
-          <h1 style={{ ...s.heading, fontSize: 30 }}>{topic.label}</h1>
-          <p style={{ ...s.subheading, marginTop: 14, fontSize: 17, color: s.color.text }}>
-            The AI will argue against you. Change its mind in 6 minutes.
-          </p>
-
-          <div style={{ ...s.noteBox, marginTop: 22 }}>
-            {leanIsKnown ? (
-              <>
-                <div style={{ marginBottom: 10 }}>
-                  You picked this topic by holding the strongest view on it. The AI will argue the{' '}
-                  <strong style={{ color: s.color.text }}>{sideLabel(debaterSide)}</strong> side:
-                </div>
-                <div style={{ color: s.color.text, lineHeight: 1.6 }}>
-                  {topic.positions[debaterSide]}
-                </div>
-              </>
-            ) : (
-              <div style={{ lineHeight: 1.6 }}>
-                Your answers came out balanced on every topic, so we picked one for you. The AI
-                will take a side and argue it hard — you will hear which one in its opening.
+        <div
+          style={{
+            width: '100%',
+            maxWidth: 560,
+            marginLeft: 'auto',
+            marginRight: 'auto',
+            padding: '0 24px',
+            boxSizing: 'border-box',
+            opacity: whiteOpaque ? 0 : 1,
+            transition: whiteout ? `opacity ${WHITEOUT_MS}ms ease` : undefined,
+          }}
+        >
+          {topic && (
+            <>
+              <p
+                style={{
+                  ...s.subheading,
+                  marginBottom: 14,
+                  color: s.color.textMuted,
+                  fontSize: 22,
+                  lineHeight: 1.4,
+                  maxWidth: '100%',
+                }}
+              >
+                {topic.question}
+              </p>
+              <div style={{ marginBottom: 20 }}>
+                <SiteShareMark size="hero" color={s.color.text} />
               </div>
-            )}
-          </div>
-
-          <ul
+            </>
+          )}
+          <button
+            type="button"
+            onClick={onBeginClick}
+            disabled={beginConfirmed || phase === 'connecting'}
             style={{
-              margin: '20px 0 0',
-              padding: 0,
-              listStyle: 'none',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-              fontSize: 14,
-              lineHeight: 1.5,
-              color: s.color.textMuted,
+              ...s.disabled(s.buttonPrimary, beginConfirmed || phase === 'connecting'),
+              minHeight: 48,
+              fontSize: 16,
             }}
           >
-            <li>Speak normally — you can interrupt it, and it will stop.</li>
-            <li>It will not budge unless you give it a real reason to.</li>
-            <li>You will see the clock and nothing else until the debate ends.</li>
-          </ul>
-
-          <div style={{ marginTop: 24 }}>
-            <button
-              type="button"
-              onClick={begin}
-              disabled={phase === 'connecting'}
-              style={s.disabled(s.buttonPrimary, phase === 'connecting')}
-            >
-              {phase === 'connecting' ? 'Connecting…' : 'Allow microphone and begin'}
-            </button>
-          </div>
-
-          <p style={{ ...s.subheading, fontSize: 12, marginTop: 14, color: s.color.textFaint }}>
-            The clock starts once the AI is connected, not when you grant the microphone.
+            {phase === 'connecting'
+              ? 'Connecting…'
+              : beginConfirmed
+                ? 'Allowed'
+                : 'Allow mic access and start'}
+          </button>
+          <p style={{ ...s.subheading, fontSize: 13, marginTop: 14, color: s.color.textFaint }}>
+            We do not stand for or endorse any of the opinions presented.
           </p>
         </div>
+
+        {whiteout && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 100,
+              background: '#ffffff',
+              opacity: whiteOpaque ? 1 : 0,
+              transition: `opacity ${WHITEOUT_MS}ms ease`,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
       </div>
+      </DebateChrome>
     )
   }
 
   const paused = phase === 'reconnecting'
+  const turnMaxMs = turnHintProgress?.maxMs ?? USER_MAX_SPEECH_MS
+  const turnElapsedMs = turnHintProgress?.elapsedMs ?? 0
+  const turnRemainingMs = Math.max(0, turnMaxMs - turnElapsedMs)
+  const turnRemainingSec = Math.max(0, Math.ceil(turnRemainingMs / 1000))
+  const turnUrgent = turnRemainingMs > 0 && turnRemainingMs <= 10_000 && turnHintVisible
+  const showAiWait = !paused && speaker === 'ai' && !turnHintVisible
 
   return (
-    <div style={{ ...s.page, justifyContent: 'space-between', maxWidth: 620, margin: '0 auto' }}>
-      <div style={{ width: '100%', textAlign: 'center', paddingTop: 8 }}>
-        <div style={{ ...s.label, marginBottom: 6 }}>{topic.label}</div>
-        <div
-          style={{
-            fontFamily: s.font.mono,
-            fontSize: 54,
-            fontWeight: 600,
-            letterSpacing: '-0.02em',
-            lineHeight: 1,
-            color: remainingMs <= 30_000 ? s.color.accent : s.color.text,
-            opacity: paused ? 0.4 : 1,
-          }}
-        >
-          {formatClock(remainingMs)}
-        </div>
-      </div>
-
-      <div style={{ width: '100%' }}>
-        <SpeakingIndicator speaker={paused ? 'idle' : speaker} />
-      </div>
-
-      <div style={{ width: '100%', textAlign: 'center', minHeight: 48 }}>
-        {paused ? (
-          <div style={{ fontSize: 14, color: s.color.accent }}>
-            Connection lost — reconnecting. The clock is paused.
-          </div>
-        ) : (
-          <div style={{ fontSize: 13, color: s.color.textFaint }}>
-            Make your case out loud. Nothing is scored on screen.
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/** Full-screen, instant. No gradual reveal and no score. */
-function ResultScreen({ outcome, onContinue }: { outcome: Outcome; onContinue: () => void }) {
-  const won = outcome.won
-
-  return (
+    <DebateChrome>
     <div
       style={{
-        position: 'fixed',
-        inset: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 24,
-        padding: 24,
-        background: won ? 'rgba(63, 185, 80, 0.07)' : 'rgba(212, 84, 74, 0.07)',
-        animation: 'cg-snap-in 140ms ease-out',
+        ...s.page,
+        justifyContent: 'flex-start',
+        paddingTop: `max(28px, env(safe-area-inset-top))`,
+        paddingBottom: `max(40px, env(safe-area-inset-bottom))`,
       }}
     >
       <div
         style={{
-          fontSize: 'clamp(48px, 14vw, 112px)',
-          fontWeight: 700,
-          letterSpacing: '-0.04em',
-          lineHeight: 1,
-          color: won ? s.color.win : s.color.lose,
-        }}
-      >
-        {won ? 'YOU WIN' : 'YOU LOSE'}
-      </div>
-
-      <p
-        style={{
-          margin: 0,
-          maxWidth: 420,
+          width: '100%',
+          maxWidth: 560,
           textAlign: 'center',
-          fontSize: 16,
-          lineHeight: 1.55,
-          color: s.color.textMuted,
+          flex: '0 0 auto',
         }}
       >
-        {describeOutcome(outcome)}
-      </p>
-
-      <div style={{ width: '100%', maxWidth: 280 }}>
-        <button type="button" onClick={onContinue} style={s.buttonPrimary}>
-          See my results
-        </button>
+        <p
+          style={{
+            margin: 0,
+            padding: '0 12px',
+            fontFamily: s.font.serif,
+            fontSize: 22,
+            lineHeight: 1.35,
+            color: s.color.text,
+            maxWidth: '100%',
+            boxSizing: 'border-box',
+            opacity: paused ? 0.35 : 1,
+          }}
+        >
+          {topic?.question}
+        </p>
+        <div
+          style={{
+            marginTop: 12,
+            marginBottom: 16,
+            opacity: paused ? 0.35 : 1,
+          }}
+        >
+          <SiteShareMark size="debate" color={s.color.text} />
+        </div>
+        <div
+          style={{
+            fontFamily: s.font.mono,
+            fontSize: 'clamp(40px, 11vw, 64px)',
+            fontWeight: 500,
+            lineHeight: 1,
+            letterSpacing: '0.06em',
+            fontVariantNumeric: 'tabular-nums',
+            color: s.color.text,
+            opacity: paused ? 0.35 : 1,
+          }}
+        >
+          {formatClock(remainingMs)}
+        </div>
+        {conductNotice && !paused && (
+          <p
+            style={{
+              margin: '14px 0 0',
+              padding: '10px 14px',
+              fontFamily: s.font.serif,
+              fontSize: 15,
+              lineHeight: 1.4,
+              color: s.color.text,
+              background: s.color.panelRaised,
+              border: `1px solid ${s.color.border}`,
+            }}
+          >
+            {conductNotice}
+          </p>
+        )}
       </div>
+
+      {interruptionStrikes > 0 && phase === 'live' && !paused && (
+        <div
+          style={{
+            position: 'fixed',
+            left: `max(12px, env(safe-area-inset-left))`,
+            bottom: `max(18px, env(safe-area-inset-bottom))`,
+            zIndex: 12,
+            fontFamily: s.font.mono,
+            fontSize: 13,
+            fontVariantNumeric: 'tabular-nums',
+            color: s.color.textMuted,
+            pointerEvents: 'none',
+          }}
+        >
+          {interruptionStrikes} of {INTERRUPTIONS_TO_LOSE} interruptions
+        </div>
+      )}
+
+      <div
+        style={{
+          flex: 1,
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 0,
+          gap: 20,
+        }}
+      >
+        <SpeakingIndicator speaker={paused ? 'idle' : speaker} />
+        <div
+          style={{
+            position: 'relative',
+            width: '100%',
+            maxWidth: 340,
+            minHeight: 76,
+            padding: '0 12px',
+            boxSizing: 'border-box',
+          }}
+        >
+          <p
+            style={{
+              position: 'absolute',
+              left: 12,
+              right: 12,
+              top: 0,
+              margin: 0,
+              textAlign: 'center',
+              fontFamily: s.font.serif,
+              fontSize: 16,
+              lineHeight: 1.45,
+              color: s.color.textMuted,
+              opacity: showAiWait ? 1 : 0,
+              transition: 'opacity 400ms ease',
+            }}
+          >
+            Wait for the AI to finish before you answer.
+          </p>
+          <div
+            style={{
+              position: 'absolute',
+              left: 12,
+              right: 12,
+              top: 0,
+              opacity: turnHintVisible ? 1 : 0,
+              transition: 'opacity 400ms ease',
+              pointerEvents: turnHintVisible ? 'auto' : 'none',
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                textAlign: 'center',
+                fontFamily: s.font.serif,
+                fontSize: 16,
+                lineHeight: 1.45,
+                color: turnUrgent ? s.color.text : s.color.textMuted,
+              }}
+            >
+              {turnUrgent
+                ? `Stop for a reply — ${turnRemainingSec}s left`
+                : `Up to 30 seconds per turn, then stop`}
+            </p>
+            <div
+              style={{
+                marginTop: 12,
+                height: 3,
+                width: '100%',
+                background: s.color.border,
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  width: `${Math.min(100, (turnElapsedMs / turnMaxMs) * 100)}%`,
+                  background: turnUrgent ? s.color.danger : s.color.textMuted,
+                  transition: 'width 450ms linear',
+                }}
+              />
+            </div>
+            <p
+              style={{
+                margin: '10px 0 0',
+                textAlign: 'center',
+                fontFamily: s.font.mono,
+                fontSize: 15,
+                fontVariantNumeric: 'tabular-nums',
+                color: s.color.textFaint,
+              }}
+            >
+              {turnRemainingSec}s
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {paused && (
+        <div
+          style={{
+            width: '100%',
+            textAlign: 'center',
+            fontSize: 14,
+            color: s.color.textMuted,
+            flex: '0 0 auto',
+          }}
+        >
+          Connection lost — reconnecting. The clock is paused.
+        </div>
+      )}
+
+      {whiteout && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            background: '#ffffff',
+            opacity: whiteOpaque ? 1 : 0,
+            transition: `opacity ${WHITEOUT_MS}ms ease`,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
     </div>
+    </DebateChrome>
   )
 }
 
-function describeOutcome(outcome: Outcome): string {
-  if (outcome.won) {
-    return 'You moved the AI off its position. That is genuinely hard to do.'
+function describeStartError(caught: unknown): string {
+  const code = (caught as { code?: string })?.code ?? ''
+  const message = caught instanceof Error ? caught.message : ''
+
+  if (code === 'functions/not-found' || /not found/i.test(message)) {
+    return 'The debate server is not available yet. Try again in a moment.'
   }
-  switch (outcome.reason) {
-    case 'incivility':
-      return 'The debate ended early because the conversation turned hostile.'
-    case 'abandoned':
-      return 'The debate ended before it finished.'
-    default:
-      return 'Time ran out before you changed its mind.'
+  if (code === 'functions/failed-precondition') {
+    return message || 'Finish the questions before starting a debate.'
   }
+  if (code === 'functions/unauthenticated') {
+    return 'You need to be signed in to start a debate.'
+  }
+  if (code === 'functions/internal' || /^internal/i.test(message)) {
+    return 'Something went wrong starting the debate. Please try again.'
+  }
+  if (message.trim()) return message
+  return 'We could not start the debate. Please try again.'
 }
 
 function formatClock(ms: number): string {

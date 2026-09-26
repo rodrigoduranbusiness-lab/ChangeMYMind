@@ -1,16 +1,25 @@
-import { FieldValue } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions'
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import type { CallableRequest } from 'firebase-functions/v2/https'
 
-import { GEMINI_API_KEY, REGION } from './config'
+import { REGION } from './config'
 import { auth, db, sessionRef, userRef } from './firebase'
-import { runJudge, runTakeaways } from './gemini'
-import { decideOutcome, outcomeDescription } from './shared/rules'
+import { runSessionJudge, runTakeaways } from './gemini'
+import { detectInstantLossSpeech, INTERRUPTIONS_TO_LOSE } from './shared/conduct'
+import { looksLikePromptInjection } from './shared/promptGuard'
+import {
+  appendEventLog,
+  interruptionCount,
+  mapConductKindToEventType,
+} from './shared/eventLog'
+import {
+  decideOutcomeFromEvents,
+  decideOutcomeFromVerdict,
+  outcomeDescription,
+} from './shared/rules'
 import {
   DEBATE_DURATION_MS,
   LATE_TURN_GRACE_MS,
-  MAX_JUDGE_EVALS,
   MAX_PAUSE_CREDIT_MS,
   buildResults,
 } from './shared/scoring'
@@ -20,15 +29,18 @@ import type {
   DiagnosticResult,
   FinalizeSessionRequest,
   FinalizeSessionResponse,
-  JudgeEval,
+  EventLogEntry,
+  ReportConductRequest,
+  ReportConductResponse,
   SessionOutcomeReason,
+  SessionStatus,
   StartSessionResponse,
   SubmitTurnRequest,
   SubmitTurnResponse,
   TranscriptEntry,
 } from './shared/types'
 
-const callOptions = { region: REGION, secrets: [GEMINI_API_KEY] }
+const callOptions = { region: REGION }
 
 function requireUid(request: CallableRequest<unknown>): string {
   const uid = request.auth?.uid
@@ -112,6 +124,10 @@ export const startSession = onCall<unknown, Promise<StartSessionResponse>>(
       pausedMs: 0,
       transcript: [],
       judgeEvals: [],
+      exchangeCount: 0,
+      eventLog: [],
+      conductEvents: 0,
+      conductPenaltyPoints: 0,
     }
     batch.set(ref, session)
     await batch.commit()
@@ -148,7 +164,7 @@ export const submitTurn = onCall<SubmitTurnRequest, Promise<SubmitTurnResponse>>
 
     const session = await loadSession(uid, sessionId)
     if (session.status !== 'active') {
-      return { outcome: session.status === 'won' ? 'won' : 'lost', reason: session.outcomeReason, remainingMs: 0 }
+      return terminalResponse(session, 0)
     }
 
     const now = Date.now()
@@ -167,65 +183,60 @@ export const submitTurn = onCall<SubmitTurnRequest, Promise<SubmitTurnResponse>>
       return { outcome: 'lost', reason: 'timeout', remainingMs: 0 }
     }
 
-    const transcript = [...session.transcript, ...additions]
+    const userTurn = cleanUser.length >= 2
+    const nextExchange = (session.exchangeCount ?? 0) + (userTurn ? 1 : 0)
 
-    // The judge scores the user, so a turn with no user speech (the debater's
-    // opening, for instance) is recorded but not evaluated.
-    const shouldJudge =
-      cleanUser.length >= 2 && session.judgeEvals.length < MAX_JUDGE_EVALS
-
-    if (!shouldJudge) {
-      // arrayUnion so this cannot clobber a write from an in-flight judge call.
-      await sessionRef(uid, sessionId).update({
-        transcript: FieldValue.arrayUnion(...additions),
+    let eventLog = session.eventLog ?? []
+    if (cleanUser && looksLikePromptInjection(cleanUser)) {
+      eventLog = appendEventLog(eventLog, {
+        turn: nextExchange || 1,
+        type: 'gaming_attempt',
+        source: 'event_log',
+        detail: 'prompt injection pattern',
       })
-      return { outcome: 'continue', reason: null, remainingMs: Math.max(0, deadline - now) }
+    }
+    const instant = detectInstantLossSpeech(cleanUser)
+    if (instant) {
+      eventLog = appendEventLog(eventLog, {
+        turn: nextExchange || 1,
+        type: instant === 'hate_speech' ? 'hate_speech' : 'toxicity',
+        source: 'event_log',
+        detail: 'server transcript match',
+      })
+      await endSession(uid, sessionId, 'lost', instant, additions, eventLog)
+      return { outcome: 'lost', reason: instant, remainingMs: 0 }
     }
 
-    let evaluation: JudgeEval
-    try {
-      const scores = await runJudge({
-        apiKey: GEMINI_API_KEY.value(),
-        topic: session.topic,
-        debaterSide: session.debaterSide,
-        transcript,
-      })
-      evaluation = { ...scores, ts: Date.now(), turnIndex: transcript.length }
-    } catch (error) {
-      // A judge failure must not end the debate or block the conversation.
-      logger.error('Judge call failed; recording turn without an evaluation', error)
-      await sessionRef(uid, sessionId).update({
-        transcript: FieldValue.arrayUnion(...additions),
-      })
-      return { outcome: 'continue', reason: null, remainingMs: Math.max(0, deadline - now) }
-    }
-
-    // Re-read inside a transaction: the debate may have ended (timer expiry,
-    // abandonment) while the judge was thinking.
     const decision = await db.runTransaction(async (tx) => {
       const ref = sessionRef(uid, sessionId)
       const snapshot = await tx.get(ref)
       const current = snapshot.data() as DebateSession | undefined
 
       if (!current || current.status !== 'active') {
-        return {
-          outcome: current?.status === 'won' ? ('won' as const) : ('lost' as const),
-          reason: current?.outcomeReason ?? null,
-        }
+        return terminalDecision(current)
       }
 
-      const evals = [...current.judgeEvals, evaluation]
-      const result = decideOutcome(evals)
+      const mergedLog = current.eventLog ?? []
+      const exchangeCount =
+        (current.exchangeCount ?? 0) + (userTurn ? 1 : 0)
+
+      const result = decideOutcomeFromEvents(mergedLog)
 
       const update: Record<string, unknown> = {
         transcript: [...current.transcript, ...additions],
-        judgeEvals: evals,
+        exchangeCount,
+        eventLog: mergedLog,
+        conductEvents: penaltyCountFromLog(mergedLog),
+        conductPenaltyPoints: penaltyCountFromLog(mergedLog),
       }
 
       if (result.outcome !== 'continue') {
         update.status = result.outcome
         update.outcomeReason = result.reason
         update.endedAt = Date.now()
+        if (result.outcome === 'needs_work') {
+          update.debateVerdict = 'needs_work'
+        }
       }
 
       tx.update(ref, update)
@@ -307,50 +318,81 @@ export const finalizeSession = onCall<FinalizeSessionRequest, Promise<FinalizeSe
     let status = session.status
     let outcomeReason: SessionOutcomeReason | null = session.outcomeReason
 
+    let judgeVerdict = session.judgeVerdict ?? null
+    const skipJudge =
+      session.outcomeReason === 'hate_speech' || session.outcomeReason === 'yelling'
+
     if (status === 'active') {
-      // The server decides, not the client. The only thing the client's
-      // `reason` can do is mark a session as abandoned.
       if (reason === 'abandoned') {
         status = 'abandoned'
         outcomeReason = 'abandoned'
+      } else if (Date.now() >= deadlineFor(session) - LATE_TURN_GRACE_MS) {
+        // Timer expired — fall through to session judge below.
       } else {
-        const decision = decideOutcome(session.judgeEvals)
-        if (decision.outcome !== 'continue') {
-          status = decision.outcome
+        throw new HttpsError(
+          'failed-precondition',
+          'The debate is still running and has not been decided.',
+        )
+      }
+    }
+
+    if (!skipJudge && !judgeVerdict && status !== 'abandoned') {
+      try {
+        judgeVerdict = await runSessionJudge({
+          topic: session.topic,
+          debaterSide: session.debaterSide,
+          transcript: session.transcript,
+          eventLog: session.eventLog ?? [],
+          userArguedOwnPosition: true,
+        })
+        session.judgeVerdict = judgeVerdict
+
+        if (status === 'active' || status === 'needs_work') {
+          const decision = decideOutcomeFromVerdict(judgeVerdict)
+          status = decision.outcome === 'continue' ? 'needs_work' : decision.outcome
           outcomeReason = decision.reason
-        } else if (Date.now() >= deadlineFor(session) - LATE_TURN_GRACE_MS) {
-          status = 'lost'
-          outcomeReason = 'timeout'
-        } else {
-          throw new HttpsError(
-            'failed-precondition',
-            'The debate is still running and has not been decided.',
-          )
+          if (judgeVerdict.session_terminate) {
+            status = 'lost'
+          }
+        }
+      } catch (error) {
+        logger.error('Session judge failed', error)
+        if (status === 'active') {
+          status = 'needs_work'
+          outcomeReason = 'argument_quality'
         }
       }
     }
 
     const diagnostic = await loadDiagnostic(uid)
-    const takeaways = await runTakeaways({
-      apiKey: GEMINI_API_KEY.value(),
-      topic: session.topic,
-      debaterSide: session.debaterSide,
-      transcript: session.transcript,
-      outcome: outcomeDescription(status, outcomeReason),
-    })
+    const takeaways =
+      judgeVerdict?.feedback_summary && !skipJudge
+        ? [judgeVerdict.feedback_summary]
+        : await runTakeaways({
+            topic: session.topic,
+            debaterSide: session.debaterSide,
+            transcript: session.transcript,
+            outcome: outcomeDescription(status, outcomeReason),
+          })
 
     const results = buildResults({
       diagnostic,
       evals: session.judgeEvals,
       assignedTopic: session.topic,
       takeaways,
+      judgeVerdict: skipJudge ? null : judgeVerdict,
     })
+
+    const debateVerdict =
+      status === 'passed' ? 'pass' : status === 'needs_work' ? 'needs_work' : session.debateVerdict
 
     await sessionRef(uid, sessionId).update({
       status,
       outcomeReason,
       endedAt: session.endedAt ?? Date.now(),
       results,
+      ...(judgeVerdict ? { judgeVerdict } : {}),
+      ...(debateVerdict ? { debateVerdict } : {}),
     })
 
     logger.info('Session finalized', { uid, sessionId, status, outcomeReason })
@@ -410,12 +452,94 @@ export const abandonSession = onRequest({ region: REGION, cors: true }, async (r
 
 // ---------------------------------------------------------------------------
 
+export const reportConduct = onCall<ReportConductRequest, Promise<ReportConductResponse>>(
+  callOptions,
+  async (request) => {
+    const uid = requireUid(request)
+    const { sessionId, kind, turn } = request.data ?? {}
+    if (!sessionId || !kind) {
+      throw new HttpsError('invalid-argument', 'sessionId and kind are required.')
+    }
+
+    const ref = sessionRef(uid, sessionId)
+    const result = await db.runTransaction(async (tx) => {
+      const snapshot = await tx.get(ref)
+      const current = snapshot.data() as DebateSession | undefined
+      if (!current || current.status !== 'active') {
+        const log = current?.eventLog
+        return {
+          outcome: terminalDecision(current).outcome,
+          reason: current?.outcomeReason ?? null,
+          conductEvents: penaltyCountFromLog(log),
+          interruptionCount: interruptionCount(log),
+          interruptionsLimit: INTERRUPTIONS_TO_LOSE,
+        }
+      }
+
+      const turnIndex = Math.max(1, Number(turn) || (current.exchangeCount ?? 1))
+      let eventLog = appendEventLog(current.eventLog, {
+        turn: turnIndex,
+        type: mapConductKindToEventType(kind),
+        source: 'event_log',
+      })
+
+      if (kind === 'yelling') {
+        tx.update(ref, {
+          status: 'lost',
+          outcomeReason: 'yelling',
+          endedAt: Date.now(),
+          eventLog,
+          conductEvents: penaltyCountFromLog(eventLog),
+          conductPenaltyPoints: penaltyCountFromLog(eventLog),
+        })
+        return {
+          outcome: 'lost' as const,
+          reason: 'yelling' as const,
+          conductEvents: penaltyCountFromLog(eventLog),
+          interruptionCount: interruptionCount(eventLog),
+          interruptionsLimit: INTERRUPTIONS_TO_LOSE,
+        }
+      }
+
+      const decision = decideOutcomeFromEvents(eventLog)
+      const penaltyCount = penaltyCountFromLog(eventLog)
+      const strikes = interruptionCount(eventLog)
+
+      const update: Record<string, unknown> = {
+        eventLog,
+        conductEvents: penaltyCount,
+        conductPenaltyPoints: penaltyCount,
+      }
+      if (decision.outcome !== 'continue') {
+        update.status = decision.outcome
+        update.outcomeReason = decision.reason
+        update.endedAt = Date.now()
+        if (decision.outcome === 'needs_work') {
+          update.debateVerdict = 'needs_work'
+        }
+      }
+      tx.update(ref, update)
+
+      return {
+        outcome: decision.outcome === 'continue' ? ('continue' as const) : decision.outcome,
+        reason: decision.reason,
+        conductEvents: penaltyCount,
+        interruptionCount: strikes,
+        interruptionsLimit: INTERRUPTIONS_TO_LOSE,
+      }
+    })
+
+    return result
+  },
+)
+
 async function endSession(
   uid: string,
   sessionId: string,
-  status: 'won' | 'lost',
+  status: SessionStatus,
   reason: SessionOutcomeReason,
   additions: TranscriptEntry[],
+  eventLog?: EventLogEntry[],
 ): Promise<void> {
   const ref = sessionRef(uid, sessionId)
   await db.runTransaction(async (tx) => {
@@ -424,16 +548,50 @@ async function endSession(
     if (!current || current.status !== 'active') {
       return
     }
+    const log = eventLog ?? current.eventLog
     tx.update(ref, {
       status,
       outcomeReason: reason,
       endedAt: Date.now(),
       transcript: [...current.transcript, ...additions],
+      ...(log ? { eventLog: log, conductEvents: penaltyCountFromLog(log), conductPenaltyPoints: penaltyCountFromLog(log) } : {}),
     })
   })
 }
 
-/** Transcribed speech only: trimmed, length-capped, no control characters. */
+function penaltyCountFromLog(log: EventLogEntry[] | undefined): number {
+  if (!log?.length) return 0
+  return log.filter((e) =>
+    ['interruption', 'long_turn', 'yelling', 'insult', 'dismissiveness'].includes(e.type),
+  ).length
+}
+
+function terminalDecision(session: DebateSession | undefined): {
+  outcome: 'passed' | 'needs_work' | 'lost'
+  reason: SessionOutcomeReason | null
+} {
+  if (!session || session.status === 'active') {
+    return { outcome: 'lost', reason: null }
+  }
+  const status = session.status as string
+  if (status === 'passed' || status === 'won') {
+    return { outcome: 'passed', reason: session.outcomeReason }
+  }
+  if (status === 'needs_work') {
+    return { outcome: 'needs_work', reason: session.outcomeReason }
+  }
+  return { outcome: 'lost', reason: session.outcomeReason }
+}
+
+function terminalResponse(session: DebateSession, remainingMs: number): SubmitTurnResponse {
+  const decision = terminalDecision(session)
+  return {
+    outcome: decision.outcome,
+    reason: decision.reason,
+    remainingMs,
+  }
+}
+
 function sanitizeSpeech(value: unknown): string {
   if (typeof value !== 'string') {
     return ''

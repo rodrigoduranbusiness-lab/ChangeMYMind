@@ -26,7 +26,6 @@ export default function SetupNotice({ missing }: { missing: string[] }) {
             color: s.color.text,
             background: s.color.bg,
             border: `1px solid ${s.color.border}`,
-            borderRadius: 10,
             overflowX: 'auto',
           }}
         >

@@ -19,12 +19,19 @@ async function syncShared() {
   await rm(sharedOut, { recursive: true, force: true })
   await mkdir(sharedOut, { recursive: true })
 
-  const files = (await readdir(sharedSrc)).filter((f) => f.endsWith('.ts'))
-  for (const file of files) {
+  const tsFiles = (await readdir(sharedSrc)).filter((f) => f.endsWith('.ts'))
+  for (const file of tsFiles) {
     const body = await readFile(path.join(sharedSrc, file), 'utf8')
     await writeFile(path.join(sharedOut, file), BANNER + body)
   }
-  return files.length
+
+  const jsonFiles = (await readdir(sharedSrc)).filter((f) => f.endsWith('.json'))
+  for (const file of jsonFiles) {
+    const body = await readFile(path.join(sharedSrc, file), 'utf8')
+    await writeFile(path.join(sharedOut, file), body)
+  }
+
+  return tsFiles.length + jsonFiles.length
 }
 
 async function syncPrompts() {

@@ -5,6 +5,7 @@ import {
   normalizeAgreement,
   pickAssignedTopic,
   scoreDiagnostic,
+  shuffleQuestionOrder,
 } from '../shared/diagnostic'
 import { TOPIC_IDS } from '../shared/topics'
 import type { DiagnosticAnswer, TopicId } from '../shared/types'
@@ -22,19 +23,31 @@ function answersFor(overrides: Record<string, number>, fallback = 3): Diagnostic
 }
 
 describe('question set', () => {
-  it('has two topic questions per topic, one leaning each way', () => {
+  it('has paired topic questions except abortion and economy (one each)', () => {
     for (const topic of TOPIC_IDS) {
       const questions = DIAGNOSTIC_QUESTIONS.filter(
         (q) => q.kind === 'topic' && q.topic === topic,
       )
-      expect(questions).toHaveLength(2)
-      expect(questions.map((q) => q.agreeLean).sort()).toEqual(['left', 'right'])
+      if (topic === 'abortion' || topic === 'economy') {
+        expect(questions).toHaveLength(1)
+      } else {
+        expect(questions).toHaveLength(2)
+        expect(questions.map((q) => q.agreeLean).sort()).toEqual(['left', 'right'])
+      }
     }
   })
 
   it('is ten questions: eight topic plus two openness', () => {
     expect(DIAGNOSTIC_QUESTIONS).toHaveLength(10)
     expect(DIAGNOSTIC_QUESTIONS.filter((q) => q.kind === 'openness')).toHaveLength(2)
+  })
+})
+
+describe('shuffleQuestionOrder', () => {
+  it('returns a permutation of all indices', () => {
+    const order = shuffleQuestionOrder(10, () => 0.5)
+    expect(order).toHaveLength(10)
+    expect(new Set(order).size).toBe(10)
   })
 })
 
@@ -52,11 +65,10 @@ describe('normalizeAgreement', () => {
 })
 
 describe('scoreDiagnostic', () => {
-  it('cancels acquiescence bias: agreeing with everything reads as centrist', () => {
-    // This is the whole reason each topic is asked from both directions.
+  it('cancels acquiescence bias on paired topics: agreeing with everything reads as centrist', () => {
     for (const value of [1, 2, 4, 5]) {
       const result = scoreDiagnostic(uniformAnswers(value))
-      for (const topic of TOPIC_IDS) {
+      for (const topic of ['immigration', 'guns', 'ai'] as TopicId[]) {
         expect(result.topicLeans[topic]).toBe(0)
         expect(result.topicExtremity[topic]).toBe(0)
       }
@@ -70,10 +82,10 @@ describe('scoreDiagnostic', () => {
         immigration_left: 1,
         guns_right: 5,
         guns_left: 1,
-        abortion_right: 5,
         abortion_left: 1,
         economy_right: 5,
-        economy_left: 1,
+        ai_right: 5,
+        ai_left: 1,
       }),
     )
 
@@ -90,10 +102,10 @@ describe('scoreDiagnostic', () => {
         immigration_left: 5,
         guns_right: 1,
         guns_left: 5,
-        abortion_right: 1,
         abortion_left: 5,
         economy_right: 1,
-        economy_left: 5,
+        ai_right: 1,
+        ai_left: 5,
       }),
     )
 
@@ -137,6 +149,7 @@ describe('pickAssignedTopic', () => {
       guns: 0,
       abortion: 0,
       economy: 0,
+      ai: 0,
       ...values,
     }) as Record<TopicId, number>
 
@@ -144,11 +157,22 @@ describe('pickAssignedTopic', () => {
     expect(pickAssignedTopic(extremity({ abortion: 0.75, guns: 0.5 }))).toBe('abortion')
   })
 
-  it('breaks exact ties randomly among the tied topics only', () => {
+  it('breaks exact ties randomly among near-tied topics', () => {
     const tied = extremity({ guns: 0.5, economy: 0.5, abortion: 0.1 })
 
     expect(pickAssignedTopic(tied, () => 0)).toBe('guns')
     expect(pickAssignedTopic(tied, () => 0.99)).toBe('economy')
+  })
+
+  it('includes topics within 0.12 extremity of the leader in the tie pool', () => {
+    const pool = extremity({ guns: 0.5, economy: 0.42, abortion: 0.1 })
+    const picks = new Set<TopicId>()
+    for (let i = 0; i < 30; i++) {
+      picks.add(pickAssignedTopic(pool, () => i / 30))
+    }
+    expect(picks.has('guns')).toBe(true)
+    expect(picks.has('economy')).toBe(true)
+    expect(picks.has('abortion')).toBe(false)
   })
 
   it('still returns a topic when every extremity is zero', () => {

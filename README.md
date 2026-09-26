@@ -21,8 +21,11 @@ screen plots how polarized you actually are.
    the win/lose outcome, the per-criterion breakdown, and two or three
    plain-language takeaways.
 
-**Win** if persuasion reaches 80 before time is up. **Lose** if the clock runs
-out, or if civility drops to 2 or below on two consecutive evaluations.
+**Pass** if respect and argument quality both clear their thresholds before the
+five-minute cap. **Needs work** if time runs out below that bar, conduct
+penalties stack up, or the judge flags weak engagement — rematch the topic.
+**Lose** instantly on severe hate speech, sustained yelling, or if civility
+drops to 2 or below on two consecutive evaluations.
 
 ## Models
 
@@ -30,7 +33,7 @@ Chosen from the current Google docs, verified against the installed SDKs:
 
 | Role | Model | How it is called |
 | --- | --- | --- |
-| Voice debater | `gemini-3.1-flash-live-preview` | Firebase AI Logic (`getLiveGenerativeModel`) from the browser |
+| Voice debater | `gemini-2.5-flash-native-audio-preview-12-2025` | Firebase AI Logic (`getLiveGenerativeModel`) from the browser |
 | Judge + takeaways | `gemini-3.8-flash` | `@google/genai` inside a Cloud Function |
 
 Both are overridable — `VITE_LIVE_MODEL` and the `JUDGE_MODEL` env var on the
@@ -138,6 +141,10 @@ Each file starts with notes for whoever is tuning it, then a `---` line.
 **Only the text after `---` is sent to the model**, so you can annotate freely.
 Placeholders like `{{TOPIC_LABEL}}` are filled from `shared/topics.ts` at
 runtime; an unfilled placeholder throws rather than shipping to the model.
+`{{FACT_BANK}}` is filled from `shared/fact-bank.json` (verified claims +
+citations for all four topics). The Live debater, judge, and takeaways models
+may only treat those entries as established facts; the judge sets
+`unverified_fact_citation` when the user cites specific stats not in the bank.
 
 `scripts/sync-shared.mjs` mirrors `prompts/` and `shared/` into
 `functions/src/` on every build, since Cloud Functions can only deploy files
@@ -201,6 +208,67 @@ npm run test:rules     # Firestore security rules against the emulator (17 tests
   (`shared/rules.ts`), independent of what the judge returned.
 - **Pause credit is capped** at 60s total, so a dropped connection cannot be
   used to stretch the six minutes.
+
+## Troubleshooting sign-in (400 / bot check)
+
+Phone sign-in uses **reCAPTCHA Enterprise for Auth** (the SDK loads
+`enterprise.js?render=<site-key>`). **App Check** uses the same kind of key from
+`VITE_APPCHECK_SITE_KEY`, but Auth also needs the key registered on the **Firebase
+project** — otherwise the console shows `recaptchaKey undefined` or
+`recaptcha Enterprise site key undefined` and `render=` is empty.
+
+**Fix (one time, project owner):**
+
+```bash
+gcloud auth application-default login
+npm run setup:auth-recaptcha
+```
+
+That links the web site key from `.env.local` to Firebase Auth (AUDIT mode). Then add
+`changemymind.tech`, `www.changemymind.tech`, and your `*.web.app` host on the
+**reCAPTCHA Enterprise key → Domains**, wait a few minutes, and hard-refresh.
+
+Or in **Firebase Console → Authentication → Settings**, complete reCAPTCHA / fraud
+protection for **Phone** and wait for Google to provision the site key.
+
+A red **400** in DevTools is often one of these:
+
+| Request URL (Network tab) | Fix |
+| --- | --- |
+| `www.google.com/recaptcha/enterprise.js?render=` (empty key) | Run `npm run setup:auth-recaptcha` or finish Auth reCAPTCHA setup in the console (see above). |
+| `identitytoolkit.googleapis.com/.../sendVerificationCode` | Complete the image challenge; disable ad blockers; ensure **Authorized domains** includes `changemymind.tech`. |
+| `firebaseappcheck.googleapis.com/.../exchangeRecaptchaEnterpriseToken` | In **Google Cloud → reCAPTCHA Enterprise → your App Check key → Domains**, add `changemymind.tech`, `www.changemymind.tech`, and your `*.web.app` host. |
+| `google.com/recaptcha/api2/clr` | Usually harmless noise; ignore unless sign-in actually fails. |
+
+**API key referrers:** In Google Cloud → **Credentials** → browser API key → **Application restrictions** → if using HTTP referrers, include `https://changemymind.tech/*` and `https://www.changemymind.tech/*`.
+
+Test without SMS: Firebase Console → **Phone numbers for testing** → `+1 202 555 0100` / `123456`.
+
+## Custom domain (`changemymind.tech`)
+
+One build serves every host connected to the same Firebase Hosting site. After
+DNS is pointed, wire the domain in the console (no separate deploy per domain).
+
+1. **Hosting** → your site → **Add custom domain** → `changemymind.tech` and
+   `www.changemymind.tech` (Firebase shows the DNS records). `firebase.json`
+   redirects `www` → apex.
+2. **Authentication** → **Settings** → **Authorized domains** → add
+   `changemymind.tech` and `www.changemymind.tech` (required for phone sign-in on
+   that host).
+3. **App Check** → your reCAPTCHA Enterprise key → **Domains** → add the same
+   hosts (and keep existing `firebaseapp.com` / `web.app` entries if you still
+   use them).
+4. **Auth domain (optional)** — either keep `VITE_FIREBASE_AUTH_DOMAIN` as
+   `your-project.firebaseapp.com` (simplest; authorized domains is enough), or
+   connect a [custom auth domain](https://firebase.google.com/docs/auth/web/custom-auth-domain)
+   in Firebase and set `VITE_FIREBASE_AUTH_DOMAIN_CUSTOM=changemymind.tech` in
+   `.env.local` / CI before `npm run build`.
+
+Redeploy hosting after env changes that affect the bundle:
+
+```bash
+npm run build && firebase deploy --only hosting
+```
 
 ## Deploying
 

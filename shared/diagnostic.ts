@@ -35,7 +35,7 @@ export const DIAGNOSTIC_QUESTIONS: DiagnosticQuestion[] = [
     topic: 'immigration',
     agreeLean: 'right',
     statement:
-      'The United States should significantly increase border enforcement, including removing more people who are living here without legal status.',
+      'U.S. immigration policy should prioritize stronger border enforcement and removals over expanding paths to legal status.',
   },
   {
     id: 'immigration_left',
@@ -43,7 +43,7 @@ export const DIAGNOSTIC_QUESTIONS: DiagnosticQuestion[] = [
     topic: 'immigration',
     agreeLean: 'left',
     statement:
-      'Most people already living in the United States without legal status should have a path to citizenship.',
+      'Long-term unauthorized residents should have a path to legal status rather than face removal.',
   },
   {
     id: 'guns_left',
@@ -51,7 +51,7 @@ export const DIAGNOSTIC_QUESTIONS: DiagnosticQuestion[] = [
     topic: 'guns',
     agreeLean: 'left',
     statement:
-      'The United States should pass stricter gun laws, including limits on which firearms civilians can buy.',
+      'Civilian firearm ownership should be regulated more tightly than it is today.',
   },
   {
     id: 'guns_right',
@@ -59,7 +59,7 @@ export const DIAGNOSTIC_QUESTIONS: DiagnosticQuestion[] = [
     topic: 'guns',
     agreeLean: 'right',
     statement:
-      'Gun ownership is an individual right that should not be restricted further; we should enforce the laws we already have.',
+      'Civilian firearm ownership should not face new restrictions beyond existing law.',
   },
   {
     id: 'abortion_left',
@@ -67,15 +67,7 @@ export const DIAGNOSTIC_QUESTIONS: DiagnosticQuestion[] = [
     topic: 'abortion',
     agreeLean: 'left',
     statement:
-      'Abortion should be legal in all or most cases, and the decision should rest with the pregnant person.',
-  },
-  {
-    id: 'abortion_right',
-    kind: 'topic',
-    topic: 'abortion',
-    agreeLean: 'right',
-    statement:
-      'Abortion should be illegal in most cases, with only narrow exceptions.',
+      'Abortion should be legal in most cases, with the decision left to the pregnant person and their doctor.',
   },
   {
     id: 'economy_right',
@@ -83,29 +75,50 @@ export const DIAGNOSTIC_QUESTIONS: DiagnosticQuestion[] = [
     topic: 'economy',
     agreeLean: 'right',
     statement:
-      'Economic policy under Trump has made most American households better off.',
+      'Economic policy since early 2025 has left most ordinary households better off.',
   },
   {
-    id: 'economy_left',
+    id: 'ai_left',
     kind: 'topic',
-    topic: 'economy',
+    topic: 'ai',
     agreeLean: 'left',
     statement:
-      'Economic policy under Trump has made most American households worse off.',
+      'Governments should require safety testing and limits on high-risk AI uses before powerful systems are widely deployed.',
+  },
+  {
+    id: 'ai_right',
+    kind: 'topic',
+    topic: 'ai',
+    agreeLean: 'right',
+    statement:
+      'AI development should face few new preemptive rules so progress and competition are not slowed.',
   },
   {
     id: 'openness_reasonable',
     kind: 'openness',
     statement:
-      'I can understand why reasonable people disagree with me on political issues.',
+      'On a heated political issue, I can usually see why a reasonable person might disagree with me.',
   },
   {
     id: 'openness_changed_mind',
     kind: 'openness',
     statement:
-      'I have changed my mind about an important political issue after hearing a good argument.',
+      'I have changed my mind on at least one political issue after hearing a strong opposing argument.',
   },
 ]
+
+/** Fisher–Yates shuffle for presentation order (scoring still uses question ids). */
+export function shuffleQuestionOrder(
+  length: number,
+  random: () => number = Math.random,
+): number[] {
+  const order = Array.from({ length }, (_, i) => i)
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1))
+    ;[order[i], order[j]] = [order[j]!, order[i]!]
+  }
+  return order
+}
 
 export const DIAGNOSTIC_LENGTH = DIAGNOSTIC_QUESTIONS.length
 
@@ -183,7 +196,11 @@ export function scoreDiagnostic(
   }
 }
 
-/** The topic with the highest extremity wins; exact ties break randomly. */
+/**
+ * Routes to the topic where the user’s views are most decisive.
+ * Near-ties (within 0.12 extremity) stay in the pool so routing feels less
+ * mechanical when two issues land close together.
+ */
 export function pickAssignedTopic(
   topicExtremity: Record<TopicId, number>,
   tieBreak: () => number = Math.random,
@@ -193,8 +210,9 @@ export function pickAssignedTopic(
     best = Math.max(best, topicExtremity[topic] ?? 0)
   }
 
+  const NEAR_TIE = 0.12
   const contenders = TOPIC_IDS.filter(
-    (topic) => Math.abs((topicExtremity[topic] ?? 0) - best) < 1e-9,
+    (topic) => best - (topicExtremity[topic] ?? 0) <= NEAR_TIE + 1e-9,
   )
 
   return contenders[Math.floor(tieBreak() * contenders.length) % contenders.length]

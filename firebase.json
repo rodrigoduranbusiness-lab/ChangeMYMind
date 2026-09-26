@@ -2,6 +2,14 @@
   "hosting": {
     "public": "dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "redirects": [
+      {
+        "source": "/**",
+        "destination": "https://changemymind.tech/:splat",
+        "type": 301,
+        "host": "www.changemymind.tech"
+      }
+    ],
     "rewrites": [
       {
         "source": "**",

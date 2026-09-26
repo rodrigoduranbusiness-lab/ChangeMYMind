@@ -1,18 +1,30 @@
 import { TOPIC_IDS } from './topics'
-import type { DiagnosticResult, JudgeScores, SessionResults, TopicId } from './types'
+import type {
+  DiagnosticResult,
+  JudgeScores,
+  JudgeSessionVerdict,
+  SessionResults,
+  TopicId,
+} from './types'
 
 // --- Win / lose thresholds (the tunable rules of the game) ------------------
 
 /** Debate length in milliseconds. */
-export const DEBATE_DURATION_MS = 6 * 60 * 1000
+export const DEBATE_DURATION_MS = 3 * 60 * 1000
 
-/** Persuasion at or above this ends the session as a win. */
+/** @deprecated Persuasion no longer ends debates; kept for analytics / harness. */
 export const WIN_PERSUASION_THRESHOLD = 80
 
-/** civility_tone at or below this counts as an incivility strike. */
+/** Session judge respect axis (0–100). */
+export const WIN_RESPECT_THRESHOLD = 70
+
+/** Session judge argument-quality axis (0–100). */
+export const WIN_QUALITY_THRESHOLD = 70
+
+/** civility_tone at or below this counts as an incivility strike (instant loss). */
 export const INCIVILITY_SCORE_THRESHOLD = 2
 
-/** Consecutive incivility strikes that end the session as a loss. */
+/** Consecutive incivility strikes that end the session immediately. */
 export const INCIVILITY_STRIKES_TO_LOSE = 2
 
 /** Grace period for a judge call that races the deadline. */
@@ -31,7 +43,7 @@ export function clamp01(n: number): number {
 /**
  * How polarized the diagnostic alone says the user is.
  *
- * Starts from the average extremity across all four topics, then nudges by up
+ * Starts from the average extremity across all topics, then nudges by up
  * to ±0.2 based on the openness questions: someone who holds strong views but
  * genuinely grants that others may be reasonable is less polarized than
  * someone who holds the same views and does not.
@@ -91,13 +103,28 @@ export interface BuildResultsInput {
   evals: JudgeScores[]
   assignedTopic: TopicId
   takeaways: string[]
+  judgeVerdict?: JudgeSessionVerdict | null
+}
+
+export function conversationFromVerdict(verdict: JudgeSessionVerdict | null | undefined): number {
+  if (!verdict || verdict.session_terminate) {
+    return 0.5
+  }
+  const avg = (verdict.respect_score + verdict.argument_quality_score) / 200
+  return clamp01(1 - avg)
 }
 
 export function buildResults(input: BuildResultsInput): SessionResults {
   const diagnostic = diagnosticComponent(input.diagnostic)
-  const conversation = conversationComponent(input.evals)
+  const conversation = input.judgeVerdict
+    ? conversationFromVerdict(input.judgeVerdict)
+    : conversationComponent(input.evals)
   const score = polarizationScore(diagnostic, conversation)
   const lean = input.diagnostic.topicLeans[input.assignedTopic] ?? 0
+
+  const takeaways = input.judgeVerdict?.feedback_summary
+    ? [input.judgeVerdict.feedback_summary]
+    : input.takeaways
 
   return {
     polarizationScore: round3(score),
@@ -105,13 +132,14 @@ export function buildResults(input: BuildResultsInput): SessionResults {
     radius: round3(score),
     diagnosticComponent: round3(diagnostic),
     conversationComponent: round3(conversation),
-    takeaways: input.takeaways,
+    takeaways,
     topicPoints: TOPIC_IDS.map((topic) => ({
       topic,
       angle: round3(angleFromLean(input.diagnostic.topicLeans[topic] ?? 0)),
       radius: round3(clamp01(input.diagnostic.topicExtremity[topic] ?? 0)),
     })),
     finalScores: input.evals.length ? (input.evals[input.evals.length - 1] as JudgeScores) : null,
+    judgeVerdict: input.judgeVerdict ?? null,
   }
 }
 
@@ -131,6 +159,21 @@ export function polarToCartesian(
 
 function clampScore(n: number): number {
   return Math.min(10, Math.max(0, Number.isFinite(n) ? n : 0))
+}
+
+/** Argument quality: evidence, tradeoffs, engaging the opponent — not persuasion. */
+export function qualityScore(scores: JudgeScores): number {
+  return (
+    (clampScore(scores.evidence_reasoning) +
+      clampScore(scores.acknowledges_tradeoffs) +
+      clampScore(scores.addresses_ai_points)) /
+    3
+  )
+}
+
+/** Respect after session conduct penalties (each penalty = −1 on civility, floor 0). */
+export function respectScore(scores: JudgeScores, conductPenaltyPoints: number): number {
+  return Math.max(0, clampScore(scores.civility_tone) - Math.max(0, conductPenaltyPoints))
 }
 
 function round3(n: number): number {

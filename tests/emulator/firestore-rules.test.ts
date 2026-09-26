@@ -104,6 +104,10 @@ describe('users/{uid}', () => {
     )
   })
 
+  it('lets a user update their display name', async () => {
+    await assertSucceeds(updateDoc(doc(aliceDb(), 'users', ALICE), { displayName: 'Alice' }))
+  })
+
   it('stops a user writing unknown fields onto their profile', async () => {
     await assertFails(updateDoc(doc(aliceDb(), 'users', ALICE), { isAdmin: true }))
   })

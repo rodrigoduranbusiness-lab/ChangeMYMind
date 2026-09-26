@@ -1,13 +1,23 @@
-import { getAI, GoogleAIBackend } from 'firebase/ai'
 import { initializeApp } from 'firebase/app'
-import { ReCaptchaEnterpriseProvider, initializeAppCheck } from 'firebase/app-check'
 import { connectAuthEmulator, getAuth } from 'firebase/auth'
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore'
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions'
 
+/** Hostnames that should use {@link import.meta.env.VITE_FIREBASE_AUTH_DOMAIN_CUSTOM} when set. */
+const CUSTOM_AUTH_HOSTS = new Set(['changemymind.tech', 'www.changemymind.tech'])
+
+function resolveAuthDomain(): string {
+  const defaultDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN
+  const customDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN_CUSTOM?.trim()
+  if (typeof window === 'undefined' || !customDomain) {
+    return defaultDomain
+  }
+  return CUSTOM_AUTH_HOSTS.has(window.location.hostname) ? customDomain : defaultDomain
+}
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  authDomain: resolveAuthDomain(),
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
@@ -16,30 +26,13 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig)
 
-/**
- * App Check is what makes it safe to call the Gemini Live API from the
- * browser: the request is authorized by an attestation that this is really our
- * app, not by an API key we would otherwise have to ship. Optional locally.
- */
-const appCheckSiteKey = import.meta.env.VITE_APPCHECK_SITE_KEY
-if (appCheckSiteKey) {
-  initializeAppCheck(app, {
-    provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
-    isTokenAutoRefreshEnabled: true,
-  })
-}
+/** App Check is initialized after phone sign-in — see {@link ensureAppCheck}. */
 
 export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const functions = getFunctions(app)
 
-/**
- * Firebase AI Logic proxies the Live API. The Gemini API key stays on Google's
- * side — it is never present in this bundle.
- */
-export const ai = getAI(app, { backend: new GoogleAIBackend() })
-
-export const LIVE_MODEL = import.meta.env.VITE_LIVE_MODEL ?? 'gemini-3.1-flash-live-preview'
+/** Voice name for Vertex Live speechConfig. */
 export const LIVE_VOICE = import.meta.env.VITE_LIVE_VOICE ?? 'Charon'
 
 export const usingEmulators = import.meta.env.VITE_USE_EMULATORS === 'true'

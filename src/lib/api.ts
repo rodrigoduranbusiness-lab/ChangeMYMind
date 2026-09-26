@@ -5,6 +5,8 @@ import type {
   DebateSession,
   DiagnosticResult,
   FinalizeSessionResponse,
+  ReportConductRequest,
+  ReportConductResponse,
   SessionOutcomeReason,
   StartSessionResponse,
   SubmitTurnResponse,
@@ -30,6 +32,11 @@ const callFinalizeSession = httpsCallable<
 const callReportPause = httpsCallable<{ sessionId: string; pausedMs: number }, { deadline: number }>(
   functions,
   'reportPause',
+)
+
+const callReportConduct = httpsCallable<ReportConductRequest, ReportConductResponse>(
+  functions,
+  'reportConduct',
 )
 
 export async function startSession(): Promise<StartSessionResponse> {
@@ -59,6 +66,62 @@ export async function reportPause(sessionId: string, pausedMs: number): Promise<
   return result.data.deadline
 }
 
+export async function reportConduct(
+  sessionId: string,
+  kind: ReportConductRequest['kind'],
+  turn?: number,
+): Promise<ReportConductResponse> {
+  const result = await callReportConduct({ sessionId, kind, turn })
+  return result.data
+}
+
+export interface LiveAccessCredentials {
+  accessToken: string
+  expiresAt: number
+  wsUrl: string
+  model: string
+  location: string
+}
+
+const callMintLiveAccess = httpsCallable<Record<string, never>, LiveAccessCredentials>(
+  functions,
+  'mintLiveAccess',
+)
+
+let liveAccessCache: { creds: LiveAccessCredentials; at: number } | null = null
+let liveAccessInflight: Promise<LiveAccessCredentials> | null = null
+
+const LIVE_ACCESS_TTL_MS = 8 * 60 * 1000
+
+/** Warm the Live token while the user is still on the Allow-mic screen. */
+export function prefetchLiveAccess(): void {
+  void mintLiveAccess().catch(() => {
+    // Best-effort; start() will retry.
+  })
+}
+
+/** Short-lived Vertex token for the browser Live WebSocket. */
+export async function mintLiveAccess(): Promise<LiveAccessCredentials> {
+  const now = Date.now()
+  if (liveAccessCache && now - liveAccessCache.at < LIVE_ACCESS_TTL_MS) {
+    return liveAccessCache.creds
+  }
+  if (liveAccessInflight) {
+    return liveAccessInflight
+  }
+
+  liveAccessInflight = callMintLiveAccess({})
+    .then((result) => {
+      liveAccessCache = { creds: result.data, at: Date.now() }
+      return result.data
+    })
+    .finally(() => {
+      liveAccessInflight = null
+    })
+
+  return liveAccessInflight
+}
+
 // --- Firestore reads/writes the client is allowed to do --------------------
 
 export async function ensureUserProfile(uid: string, phone: string | null): Promise<UserProfile> {
@@ -83,6 +146,11 @@ export async function saveDiagnostic(uid: string, diagnostic: DiagnosticResult):
     diagnostic: { ...diagnostic, completedAt: Date.now() },
     updatedAt: serverTimestamp(),
   })
+}
+
+export async function deleteAccount(): Promise<void> {
+  const call = httpsCallable<Record<string, never>, { ok: true }>(functions, 'deleteAccount')
+  await call({})
 }
 
 export async function getSession(uid: string, sessionId: string): Promise<DebateSession | null> {

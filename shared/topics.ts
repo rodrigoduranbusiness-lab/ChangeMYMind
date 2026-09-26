@@ -50,6 +50,15 @@ export const TOPICS: TopicConfig[] = [
       right: 'Economic policy under Trump has left most households better off: deregulation and tax cuts drove growth, jobs, and wage gains that reached working families.',
     },
   },
+  {
+    id: 'ai',
+    label: 'AI regulation',
+    question: 'Should AI be regulated more tightly or left freer to develop?',
+    positions: {
+      left: 'AI should be regulated more tightly: require safety testing, transparency, and limits on high-risk uses before models scale, even if that slows some products.',
+      right: 'AI should be left freer to develop: heavy preemptive rules favor incumbents, chill research, and cede the lead to countries that will not pause for U.S. process.',
+    },
+  },
 ]
 
 export const TOPIC_IDS: TopicId[] = TOPICS.map((t) => t.id)

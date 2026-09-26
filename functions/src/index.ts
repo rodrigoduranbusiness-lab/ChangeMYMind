@@ -11,3 +11,8 @@ export {
   startSession,
   submitTurn,
 } from './sessions'
+
+export { deleteAccount } from './accounts'
+
+export { mintLiveAccess } from './liveAccess'
+export { reportConduct } from './sessions'

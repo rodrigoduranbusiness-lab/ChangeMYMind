@@ -1,27 +1,38 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import {
   DIAGNOSTIC_QUESTIONS,
   SCALE_LABELS,
   scoreDiagnostic,
+  shuffleQuestionOrder,
 } from '@shared/diagnostic'
-import { getTopic } from '@shared/topics'
 import type { DiagnosticAnswer } from '@shared/types'
 import { useAuth } from '../auth/context'
 import { saveDiagnostic } from '../lib/api'
 import * as s from '../theme'
 
+const CONFIRM_MS = 500
+
 export default function Diagnostic() {
   const { user, refreshDiagnostic } = useAuth()
   const navigate = useNavigate()
 
+  const [order] = useState(() => shuffleQuestionOrder(DIAGNOSTIC_QUESTIONS.length))
   const [index, setIndex] = useState(0)
   const [values, setValues] = useState<Record<string, number>>({})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [locked, setLocked] = useState(false)
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([])
 
-  const question = DIAGNOSTIC_QUESTIONS[index]
+  useEffect(() => {
+    return () => {
+      for (const id of timers.current) clearTimeout(id)
+    }
+  }, [])
+
+  const question = DIAGNOSTIC_QUESTIONS[order[index]!]
   const total = DIAGNOSTIC_QUESTIONS.length
   const selected = values[question.id]
   const isLast = index === total - 1
@@ -31,39 +42,57 @@ export default function Diagnostic() {
     [index, selected, total],
   )
 
-  function choose(value: number) {
-    setValues((previous) => ({ ...previous, [question.id]: value }))
+  function schedule(ms: number, next: () => void) {
+    const id = setTimeout(next, ms)
+    timers.current.push(id)
   }
 
-  async function goNext() {
-    if (selected === undefined) return
-
-    if (!isLast) {
-      setIndex(index + 1)
+  async function finish(nextValues: Record<string, number>) {
+    if (!user) {
+      setLocked(false)
       return
     }
-
-    if (!user) return
     setError(null)
     setSaving(true)
 
     try {
       const answers: DiagnosticAnswer[] = DIAGNOSTIC_QUESTIONS.map((q) => ({
         questionId: q.id,
-        value: values[q.id],
+        value: nextValues[q.id],
       }))
 
-      // Scored on the client so we can show the assigned topic immediately;
-      // the debate itself re-reads this from Firestore server-side.
       const result = scoreDiagnostic(answers)
       await saveDiagnostic(user.uid, result)
       await refreshDiagnostic()
-      navigate('/debate', { replace: true })
+      navigate('/briefing', { replace: true })
     } catch (caught) {
       console.error(caught)
       setError('We could not save your answers. Check your connection and try again.')
       setSaving(false)
+      setLocked(false)
     }
+  }
+
+  function choose(value: number) {
+    if (locked || saving) return
+
+    const nextValues = { ...values, [question.id]: value }
+    setValues(nextValues)
+    setLocked(true)
+
+    const reduceMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    // Hold the confirmed choice briefly, then advance — no white flash.
+    schedule(reduceMotion ? 0 : CONFIRM_MS, () => {
+      if (!isLast) {
+        setIndex(index + 1)
+        setLocked(false)
+        return
+      }
+      void finish(nextValues)
+    })
   }
 
   return (
@@ -81,7 +110,7 @@ export default function Diagnostic() {
             Question {index + 1} of {total}
           </span>
           <span style={{ fontSize: 12, color: s.color.textFaint }}>
-            {question.kind === 'openness' ? 'About you' : getTopic(question.topic!).label}
+            {question.kind === 'openness' ? 'About you' : 'Your take'}
           </span>
         </div>
 
@@ -91,10 +120,9 @@ export default function Diagnostic() {
           aria-valuemin={0}
           aria-valuemax={100}
           style={{
-            height: 4,
+            height: 3,
             width: '100%',
             background: s.color.bg,
-            borderRadius: 999,
             overflow: 'hidden',
             marginBottom: 28,
           }}
@@ -103,8 +131,7 @@ export default function Diagnostic() {
             style={{
               height: '100%',
               width: `${progress}%`,
-              background: s.color.accent,
-              borderRadius: 999,
+              background: s.color.text,
               transition: 'width 220ms ease',
             }}
           />
@@ -113,10 +140,9 @@ export default function Diagnostic() {
         <p
           style={{
             margin: '0 0 24px',
-            fontSize: 21,
+            fontSize: 22,
             lineHeight: 1.4,
             fontWeight: 500,
-            letterSpacing: '-0.01em',
           }}
         >
           {question.statement}
@@ -131,6 +157,7 @@ export default function Diagnostic() {
               <button
                 key={value}
                 type="button"
+                disabled={locked || saving}
                 onClick={() => choose(value)}
                 aria-pressed={active}
                 style={{
@@ -139,24 +166,22 @@ export default function Diagnostic() {
                   gap: 12,
                   width: '100%',
                   padding: '13px 16px',
-                  fontSize: 15,
-                  fontFamily: s.font.sans,
+                  fontSize: 16,
+                  fontFamily: s.font.serif,
                   textAlign: 'left',
-                  color: active ? s.color.accent : s.color.text,
-                  background: active ? 'rgba(224, 176, 80, 0.1)' : s.color.bg,
-                  border: `1px solid ${active ? s.color.accent : s.color.border}`,
-                  borderRadius: 10,
-                  cursor: 'pointer',
+                  color: active ? s.color.bg : s.color.text,
+                  background: active ? s.color.text : 'transparent',
+                  border: `1px solid ${active ? s.color.text : s.color.border}`,
+                  cursor: locked || saving ? 'default' : 'pointer',
                 }}
               >
                 <span
                   style={{
                     flex: '0 0 auto',
-                    width: 14,
-                    height: 14,
-                    borderRadius: '50%',
-                    border: `1px solid ${active ? s.color.accent : s.color.borderStrong}`,
-                    background: active ? s.color.accent : 'transparent',
+                    width: 12,
+                    height: 12,
+                    border: `1px solid ${active ? s.color.bg : s.color.borderStrong}`,
+                    background: active ? s.color.bg : 'transparent',
                   }}
                 />
                 {scaleLabel}
@@ -165,8 +190,8 @@ export default function Diagnostic() {
           })}
         </div>
 
-        <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-          {index > 0 && (
+        {index > 0 && !locked && !saving && (
+          <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
             <button
               type="button"
               onClick={() => setIndex(index - 1)}
@@ -174,16 +199,8 @@ export default function Diagnostic() {
             >
               Back
             </button>
-          )}
-          <button
-            type="button"
-            onClick={goNext}
-            disabled={selected === undefined || saving}
-            style={s.disabled(s.buttonPrimary, selected === undefined || saving)}
-          >
-            {saving ? 'Saving…' : isLast ? 'See my topic' : 'Next'}
-          </button>
-        </div>
+          </div>
+        )}
 
         {error && <div style={s.errorBox}>{error}</div>}
       </div>

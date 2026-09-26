@@ -1,0 +1,384 @@
+{
+  "meta": {
+    "purpose": "Grounding fact bank for AI debate opponent + judge model. Model must only cite facts listed here; anything else gets flagged 'unverified' by the judge.",
+    "methodology": "Facts pulled from primary/nonpartisan sources (Pew, KFF, Guttmacher, CDC, BLS, FactCheck.org, RAND, Tax Foundation). Each fact tagged with which side commonly cites it, but the fact itself is presented neutrally. 'as_of' marks data currency — refresh before demo day if newer data drops.",
+    "last_updated": "2026-09-26"
+  },
+  "topics": {
+    "immigration": {
+      "neutral_framing": "Migrant encounters at the U.S.-Mexico border have fallen sharply since early 2025, while the debate has shifted from 'how many are crossing' to enforcement scope, deportation methods, and their economic/humanitarian tradeoffs.",
+      "facts": [
+        {
+          "id": "bc1",
+          "claim": "Border Patrol recorded 237,538 migrant encounters at the U.S.-Mexico border in FY2025 (Oct 2024–Sept 2025), the lowest annual total since 1970 and down from over 1.5 million in FY2024.",
+          "source": "Pew Research Center, Feb 2026",
+          "cited_by": "right"
+        },
+        {
+          "id": "bc2",
+          "claim": "Since February 2025, Border Patrol has recorded fewer than 10,000 encounters per month at the southwest border.",
+          "source": "Pew Research Center, Feb 2026",
+          "cited_by": "right"
+        },
+        {
+          "id": "bc3",
+          "claim": "The U.S. foreign-born population shrank by more than 1 million people as of June 2025 — its first decline since the 1960s.",
+          "source": "Pew Research Center, 2025",
+          "cited_by": "neutral"
+        },
+        {
+          "id": "bc4",
+          "claim": "50% of U.S. adults disapprove of the Trump administration's approach to immigration (36% strongly disapprove), while 59% approved of increased deportation efforts in a separate Feb 2025 survey.",
+          "source": "Pew Research Center, Dec 2025 / Feb 2025",
+          "cited_by": "neutral"
+        },
+        {
+          "id": "bc5",
+          "claim": "The unauthorized immigrant population reached a record 14 million as of 2023, growing by 3.5 million between 2021 and 2023.",
+          "source": "Pew Research Center, Aug 2025",
+          "cited_by": "right"
+        },
+        {
+          "id": "bc6",
+          "claim": "64% of Democrats expect the cost of goods/services to rise as a result of mass deportations, vs. 19% of Republicans who share that view.",
+          "source": "Pew Research Center, Apr 2025",
+          "cited_by": "left"
+        },
+        {
+          "id": "bc7",
+          "claim": "The Trump administration ended Temporary Protected Status for 13 countries, affecting roughly 1 million recipients, and cut refugee admissions to just over 10,000 in FY2026 (down from ~38,000 in FY2025).",
+          "source": "Pew Research Center, 2026",
+          "cited_by": "left"
+        },
+        {
+          "id": "bc8",
+          "claim": "Research on immigration enforcement generally finds no measurable impact on overall crime rates; separately, a 2025 Brookings analysis estimated last year's decline in immigration shaved up to 0.26 percentage points off U.S. GDP growth.",
+          "source": "Academic research summary (Wikipedia, citing peer-reviewed studies) / Brookings Institution, 2026",
+          "cited_by": "neutral"
+        }
+      ],
+      "resources": {
+        "left_1": {
+          "title": "American Immigration Council — policy research and analysis",
+          "url": "https://www.americanimmigrationcouncil.org/"
+        },
+        "left_2": {
+          "title": "National Immigration Forum — pro-immigration policy advocacy",
+          "url": "https://immigrationforum.org/"
+        },
+        "right_1": {
+          "title": "Center for Immigration Studies — research favoring lower immigration levels",
+          "url": "https://cis.org/"
+        },
+        "right_2": {
+          "title": "Federation for American Immigration Reform (FAIR)",
+          "url": "https://www.fairus.org/"
+        },
+        "neutral": {
+          "title": "Pew Research Center — Border Security & Enforcement topic hub",
+          "url": "https://www.pewresearch.org/topic/immigration-migration/immigration-issues/unauthorized-immigration/border-security-enforcement/"
+        }
+      }
+    },
+    "guns": {
+      "neutral_framing": "Americans are closely split on whether stricter gun laws reduce mass shootings, even as gun deaths and mass shooting counts have trended downward in preliminary 2025–2026 data.",
+      "facts": [
+        {
+          "id": "gc1",
+          "claim": "62% of U.S. firearm deaths in 2024 were suicides; roughly 35–40% were homicides.",
+          "source": "Pew Research Center, 2026",
+          "cited_by": "neutral"
+        },
+        {
+          "id": "gc2",
+          "claim": "2025 saw a 19% decrease in mass shootings from the previous year (407 incidents), and preliminary CDC data suggests continued declines in homicides and non-suicide shooting deaths through 2025.",
+          "source": "Gun Violence Archive, 2026 / Wikipedia (CDC-sourced)",
+          "cited_by": "right"
+        },
+        {
+          "id": "gc3",
+          "claim": "About three-in-ten U.S. adults personally own a gun; 72% of gun owners cite personal protection as a major reason for owning one, and 81% say a gun makes them feel safer.",
+          "source": "Pew Research Center, 2024",
+          "cited_by": "right"
+        },
+        {
+          "id": "gc4",
+          "claim": "As of a 2023 Pew survey, 59% of Americans said it's more important to control gun violence than protect gun rights (35% said the opposite) — the highest that gap had been in nearly a decade.",
+          "source": "Pew Research Center / Boston University research guide",
+          "cited_by": "left"
+        },
+        {
+          "id": "gc5",
+          "claim": "Gun deaths among U.S. children rose 50% from 2019 to 2021.",
+          "source": "Pew Research Center, via Wikipedia 'Gun violence in the United States'",
+          "cited_by": "left"
+        },
+        {
+          "id": "gc6",
+          "claim": "Americans are roughly evenly split on whether stricter gun-purchase laws would reduce mass shootings — about half say fewer shootings would result, the other half say it would make no difference or increase them.",
+          "source": "Pew Research Center, 2021 survey (most recent available on this specific question)",
+          "cited_by": "neutral"
+        },
+        {
+          "id": "gc7",
+          "claim": "About a third (32%) of K-12 parents say they are very or extremely worried about a shooting happening at their child's school.",
+          "source": "Pew Research Center",
+          "cited_by": "left"
+        },
+        {
+          "id": "gc8",
+          "claim": "Academic research on background checks (RAND, and studies compiled by Journalist's Resource) finds they can reduce gun violence, but mainly when combined with permit-to-purchase requirements — background checks alone show weaker standalone effects.",
+          "source": "RAND Corporation / Journalist's Resource literature review",
+          "cited_by": "neutral"
+        }
+      ],
+      "resources": {
+        "left_1": {
+          "title": "Everytown Research & Policy — gun violence prevention research",
+          "url": "https://everytownresearch.org/"
+        },
+        "left_2": {
+          "title": "Giffords Law Center to Prevent Gun Violence",
+          "url": "https://giffords.org/lawcenter/"
+        },
+        "right_1": {
+          "title": "NRA-ILA — Second Amendment advocacy and policy analysis",
+          "url": "https://www.nraila.org/"
+        },
+        "right_2": {
+          "title": "Crime Prevention Research Center — pro-gun-rights research",
+          "url": "https://crimeresearch.org/"
+        },
+        "neutral": {
+          "title": "Pew Research Center — Key facts about Americans and guns",
+          "url": "https://www.pewresearch.org/short-reads/2024/07/24/key-facts-about-americans-and-guns/"
+        }
+      }
+    },
+    "abortion": {
+      "neutral_framing": "Since the 2022 Dobbs decision returned abortion regulation to the states, national abortion counts have stayed roughly stable or slightly risen overall even as access has sharply contracted in ban states, driving large increases in interstate travel and medication abortion.",
+      "facts": [
+        {
+          "id": "ab1",
+          "claim": "60% of Americans say abortion should be legal in all or most cases, but the partisan gap in views between Democrats and Republicans has roughly doubled over the past two decades.",
+          "source": "Pew Research Center, 2026",
+          "cited_by": "left"
+        },
+        {
+          "id": "ab2",
+          "claim": "As of May 2025, 30% of Americans say abortion should be legal 'under any circumstances,' 55% say 'under certain circumstances,' and 13% say it should be illegal in all circumstances.",
+          "source": "Gallup, May 2025",
+          "cited_by": "neutral"
+        },
+        {
+          "id": "ab3",
+          "claim": "There were an estimated 1.11 million abortions nationally in 2024 (up slightly from 1.05 million in 2023) — the overall count has stayed similar to pre-Dobbs levels nationally, despite bans in some states.",
+          "source": "KFF / Society for Family Planning #WeCount, 2026",
+          "cited_by": "left"
+        },
+        {
+          "id": "ab4",
+          "claim": "142,000 patients traveled out of state for abortion care in 2025 — nearly double the 81,000 who did so in 2020, before the Dobbs ruling.",
+          "source": "KFF, 2026 (Guttmacher Monthly Abortion Provision Study data)",
+          "cited_by": "left"
+        },
+        {
+          "id": "ab5",
+          "claim": "In Florida, which implemented a six-week abortion ban in May 2024, abortions provided in-state fell 27% in the first half of 2025 compared to the same period in 2024 — the largest single-state decline recorded.",
+          "source": "Guttmacher Institute, 2025",
+          "cited_by": "left"
+        },
+        {
+          "id": "ab6",
+          "claim": "Median out-of-pocket cost for an abortion in 2023 was $563 for a medication abortion and $650 for a procedural abortion.",
+          "source": "KFF, 2025",
+          "cited_by": "neutral"
+        },
+        {
+          "id": "ab7",
+          "claim": "A majority of the public disapproved of the Supreme Court's 2022 decision to overturn Roe v. Wade, per Pew Research Center polling.",
+          "source": "Pew Research Center",
+          "cited_by": "left"
+        },
+        {
+          "id": "ab8",
+          "claim": "The public leans toward viewing abortion as morally acceptable (49%) over morally wrong (40%), and toward self-identifying as 'pro-choice' (51%) over 'pro-life' (43%).",
+          "source": "Gallup, 2025",
+          "cited_by": "neutral"
+        }
+      ],
+      "resources": {
+        "left_1": {
+          "title": "Guttmacher Institute — abortion research and policy analysis",
+          "url": "https://www.guttmacher.org/"
+        },
+        "left_2": {
+          "title": "Planned Parenthood Action Fund",
+          "url": "https://www.plannedparenthoodaction.org/"
+        },
+        "right_1": {
+          "title": "Americans United for Life — pro-life legal & policy research",
+          "url": "https://aul.org/"
+        },
+        "right_2": {
+          "title": "Susan B. Anthony Pro-Life America",
+          "url": "https://sbaprolife.org/"
+        },
+        "neutral": {
+          "title": "KFF — Key Facts on Abortion in the United States",
+          "url": "https://www.kff.org/womens-health-policy/key-facts-on-abortion-in-the-united-states/"
+        }
+      }
+    },
+    "economy": {
+      "neutral_framing": "GDP growth has held around 2% and unemployment hasn't spiked, but job growth has slowed sharply and inflation has ticked back up since early 2025 — economists attribute part of the inflation increase to new tariffs, while the administration attributes resilience to its broader policy agenda.",
+      "facts": [
+        {
+          "id": "ec1",
+          "claim": "Real GDP grew at a 2.0–2.1% annual rate in Q1 2026, similar to 2.1% full-year growth in 2025 — both below the roughly 2.8% pace some prior comparisons cite for earlier periods.",
+          "source": "FactCheck.org / Yahoo Finance (Bureau of Economic Analysis data), 2026",
+          "cited_by": "neutral"
+        },
+        {
+          "id": "ec2",
+          "claim": "Total nonfarm employment grew by only 716,000 jobs between January 2025 and June 2026 — roughly 24,000–39,000 jobs a month on average, sharply below the ~168,000/month average pace in the prior year.",
+          "source": "FactCheck.org (Bureau of Labor Statistics data), Jul 2026",
+          "cited_by": "left"
+        },
+        {
+          "id": "ec3",
+          "claim": "The unemployment rate stood at 4.2% as of mid-2026, and inflation rose to 3.5% in June 2026, up from 2.7% annualized a year earlier.",
+          "source": "FactCheck.org, Jul 2026 / CEPR, Mar 2026",
+          "cited_by": "left"
+        },
+        {
+          "id": "ec4",
+          "claim": "The Federal Reserve's own calculations estimate core inflation would have been 2.3% instead of the actual 3.2% (as of March 2026) if not for the administration's tariffs.",
+          "source": "Federal Reserve analysis, cited by Yahoo Finance/Vox, May 2026",
+          "cited_by": "left"
+        },
+        {
+          "id": "ec5",
+          "claim": "New tariffs apply to an estimated 54% of U.S. goods imports in 2026, raising the effective tariff rate to 7.2% and projected to generate $1.4 trillion in federal revenue from 2026–2035 — while reducing long-run GDP by an estimated 0.4% and cutting hours worked by 338,000 full-time-equivalent jobs.",
+          "source": "Tax Foundation Tariff Model, Sept 2026",
+          "cited_by": "neutral"
+        },
+        {
+          "id": "ec6",
+          "claim": "Average inflation-adjusted weekly earnings for private-sector workers rose 1.3% as of mid-2026, meaning wages have outpaced inflation even amid elevated price levels.",
+          "source": "U.S. Department of Treasury / FactCheck.org, 2026",
+          "cited_by": "right"
+        },
+        {
+          "id": "ec7",
+          "claim": "The Council of Economic Advisers projects that pro-growth provisions in the administration's 2025 tax and spending law will increase real GDP by 4.6–4.9% over its first four years of implementation.",
+          "source": "U.S. Department of Treasury, 2026",
+          "cited_by": "right"
+        },
+        {
+          "id": "ec8",
+          "claim": "Manufacturing jobs declined despite new import tariffs, with one tracker citing a loss of roughly 37,000 manufacturing jobs since tariffs began; the goods-and-services trade deficit is still on pace to decrease in 2026 after rising in 2025.",
+          "source": "MarketBeat / FactCheck.org, 2026",
+          "cited_by": "neutral"
+        }
+      ],
+      "resources": {
+        "left_1": {
+          "title": "Center for American Progress — economic policy analysis",
+          "url": "https://www.americanprogress.org/"
+        },
+        "left_2": {
+          "title": "Economic Policy Institute — worker-focused economic research",
+          "url": "https://www.epi.org/"
+        },
+        "right_1": {
+          "title": "The Heritage Foundation — economic policy analysis",
+          "url": "https://www.heritage.org/"
+        },
+        "right_2": {
+          "title": "U.S. Department of the Treasury — official economic policy statements",
+          "url": "https://home.treasury.gov/news/press-releases"
+        },
+        "neutral": {
+          "title": "FactCheck.org — 'Trump's Numbers' (recurring nonpartisan economic scorecard)",
+          "url": "https://www.factcheck.org/2026/07/trumps-numbers-july-2026-update/"
+        }
+      }
+    },
+    "ai": {
+      "neutral_framing": "Governments and companies are racing to set rules for advanced AI — how much preemptive safety regulation, transparency, and risk limits to impose versus how much to leave development freer for speed and competition.",
+      "facts": [
+        {
+          "id": "ai1",
+          "claim": "In Pew surveys of U.S. adults and AI experts (2024–2025), both groups more often worry that government regulation of AI will not go far enough than that it will go too far.",
+          "source": "Pew Research Center, Apr 2025",
+          "cited_by": "left"
+        },
+        {
+          "id": "ai2",
+          "claim": "62% of U.S. adults say they have not too much or no confidence that the U.S. government can regulate AI effectively; 59% say the same about companies developing and using AI responsibly.",
+          "source": "Pew Research Center, Apr 2025",
+          "cited_by": "neutral"
+        },
+        {
+          "id": "ai3",
+          "claim": "Across 25 countries surveyed in spring 2025, a median of 55% of adults have at least some trust in their own country to regulate AI, while a median of 53% trust the EU — higher than trust in the U.S. (37%) or China (27%) as regulators.",
+          "source": "Pew Research Center, Oct 2025",
+          "cited_by": "neutral"
+        },
+        {
+          "id": "ai4",
+          "claim": "NIST’s AI Risk Management Framework (AI RMF 1.0) is a voluntary U.S. guidance document organized around Govern, Map, Measure, and Manage — not a binding licensing regime for frontier models.",
+          "source": "NIST AI RMF 1.0 / Commerce Department guidance, 2023–2024",
+          "cited_by": "right"
+        },
+        {
+          "id": "ai5",
+          "claim": "The European Union’s AI Act uses a risk-tier approach: prohibited practices began applying in February 2025, general-purpose AI obligations in August 2025, and broader high-risk system rules phase in through August 2026.",
+          "source": "European Commission / EU AI Act timeline, 2024–2025",
+          "cited_by": "left"
+        },
+        {
+          "id": "ai6",
+          "claim": "More than half of U.S. adults (55%) and a similar share of surveyed AI experts (57%) say they want more personal control over how AI is used in their lives.",
+          "source": "Pew Research Center, Apr 2025",
+          "cited_by": "left"
+        },
+        {
+          "id": "ai7",
+          "claim": "AI experts surveyed by Pew are far more positive than the U.S. public about AI’s net effects, including on jobs — a gap that regulators weigh when deciding how precautionary rules should be.",
+          "source": "Pew Research Center, Apr 2025",
+          "cited_by": "right"
+        },
+        {
+          "id": "ai8",
+          "claim": "NIST’s generative-AI profile companion to the AI RMF identifies a dozen risk categories and over 200 recommended actions organizations can take — still framed as voluntary best practice rather than mandatory pre-market approval.",
+          "source": "NIST AI 600-1 generative AI profile / Commerce, 2024",
+          "cited_by": "right"
+        }
+      ],
+      "resources": {
+        "left_1": {
+          "title": "Center for AI Safety — research on catastrophic and systemic AI risks",
+          "url": "https://www.safe.ai/"
+        },
+        "left_2": {
+          "title": "Electronic Privacy Information Center — AI and automated decision-making advocacy",
+          "url": "https://epic.org/issues/ai/"
+        },
+        "right_1": {
+          "title": "Andreessen Horowitz — arguments against heavy AI regulation",
+          "url": "https://a16z.com/ai-regulation/"
+        },
+        "right_2": {
+          "title": "Chamber of Progress — tech policy case for innovation-friendly AI rules",
+          "url": "https://progresschamber.org/"
+        },
+        "neutral": {
+          "title": "Pew Research Center — how the U.S. public and AI experts view AI",
+          "url": "https://www.pewresearch.org/internet/2025/04/03/how-the-us-public-and-ai-experts-view-artificial-intelligence/"
+        }
+      }
+    }
+  }
+}

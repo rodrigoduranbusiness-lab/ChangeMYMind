@@ -10,4 +10,7 @@ export default defineConfig({
       '@prompts': fileURLToPath(new URL('./prompts', import.meta.url)),
     },
   },
+  preview: {
+    allowedHosts: ['changemymind.tech', 'www.changemymind.tech', 'localhost'],
+  },
 })

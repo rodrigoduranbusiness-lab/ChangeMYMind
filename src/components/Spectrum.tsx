@@ -3,11 +3,17 @@ import { getTopic } from '@shared/topics'
 import type { SessionResults } from '@shared/types'
 import * as s from '../theme'
 
-const SIZE = 340
-/** Room for the edge ring, a dot sitting on it, and the labels outside. */
-const PADDING = 42
-const CENTER = SIZE / 2
-const MAX_RADIUS = CENTER - PADDING
+const SIZE_FULL = 360
+const SIZE_COMPACT = 320
+
+function layout(compact: boolean) {
+  const SIZE = compact ? SIZE_COMPACT : SIZE_FULL
+  // Less padding = more of the circle visible in the first viewport.
+  const PADDING = compact ? 28 : 36
+  const CENTER = SIZE / 2
+  const MAX_RADIUS = CENTER - PADDING
+  return { SIZE, PADDING, CENTER, MAX_RADIUS }
+}
 
 const RINGS = [0.25, 0.5, 0.75, 1]
 
@@ -20,8 +26,19 @@ const RINGS = [0.25, 0.5, 0.75, 1]
  * lean points straight up. Both halves are drawn identically, at the same
  * opacity — neither side is visually privileged.
  */
-export default function Spectrum({ results }: { results: SessionResults }) {
+export default function Spectrum({
+  results,
+  compact = false,
+  /** Always show axis labels (Left / Right / Open / Polarized). */
+  labeled = false,
+}: {
+  results: SessionResults
+  compact?: boolean
+  labeled?: boolean
+}) {
+  const { SIZE, PADDING, CENTER, MAX_RADIUS } = layout(compact)
   const user = polarToCartesian(CENTER, CENTER, results.radius * MAX_RADIUS, results.angle)
+  const showLabels = labeled || !compact
 
   return (
     <svg
@@ -29,20 +46,20 @@ export default function Spectrum({ results }: { results: SessionResults }) {
       width="100%"
       style={{ maxWidth: SIZE, display: 'block', margin: '0 auto' }}
       role="img"
-      aria-label={`Polarization ${Math.round(results.polarizationScore * 100)} out of 100, leaning ${
+      aria-label={`Where you are politically: polarization ${Math.round(results.polarizationScore * 100)} out of 100, leaning ${
         results.angle < 90 ? 'right' : results.angle > 90 ? 'left' : 'neither direction'
       }`}
     >
       {/* Half tints, identical opacity on each side. */}
       <path
-        d={halfCircle('left')}
+        d={halfCircle('left', CENTER, MAX_RADIUS)}
         fill={s.color.left}
-        opacity={0.05}
+        opacity={0.08}
       />
       <path
-        d={halfCircle('right')}
+        d={halfCircle('right', CENTER, MAX_RADIUS)}
         fill={s.color.right}
-        opacity={0.05}
+        opacity={0.08}
       />
 
       {RINGS.map((ring) => (
@@ -101,56 +118,58 @@ export default function Spectrum({ results }: { results: SessionResults }) {
         cy={user.y}
         r={6.5}
         fill={s.color.accent}
-        stroke={s.color.bg}
+        stroke={s.color.panel}
         strokeWidth={2}
       />
 
-      {/* Labels sit outside the ring so nothing collides with an edge dot. */}
-      <text
-        x={CENTER}
-        y={PADDING - 20}
-        textAnchor="middle"
-        fill={s.color.textFaint}
-        style={{ fontSize: 10, letterSpacing: '0.12em' }}
-      >
-        POLARIZED
-      </text>
-      <text
-        x={CENTER + 7}
-        y={CENTER - 7}
-        textAnchor="start"
-        fill={s.color.textFaint}
-        style={{ fontSize: 10, letterSpacing: '0.12em' }}
-      >
-        OPEN
-      </text>
-      <text
-        x={CENTER - MAX_RADIUS / 2}
-        y={SIZE - PADDING + 30}
-        textAnchor="middle"
-        fill={s.color.left}
-        style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em' }}
-      >
-        LEFT
-      </text>
-      <text
-        x={CENTER + MAX_RADIUS / 2}
-        y={SIZE - PADDING + 30}
-        textAnchor="middle"
-        fill={s.color.right}
-        style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em' }}
-      >
-        RIGHT
-      </text>
+      {showLabels && (
+        <>
+          <text
+            x={CENTER}
+            y={PADDING - 12}
+            textAnchor="middle"
+            fill={s.color.textFaint}
+            style={{ fontSize: 11, fontFamily: s.font.serif }}
+          >
+            Polarized
+          </text>
+          <text
+            x={CENTER + 7}
+            y={CENTER - 7}
+            textAnchor="start"
+            fill={s.color.textFaint}
+            style={{ fontSize: 11, fontFamily: s.font.serif }}
+          >
+            Open
+          </text>
+          <text
+            x={CENTER - MAX_RADIUS / 2}
+            y={SIZE - PADDING + 22}
+            textAnchor="middle"
+            fill={s.color.left}
+            style={{ fontSize: 12, fontFamily: s.font.serif }}
+          >
+            Left
+          </text>
+          <text
+            x={CENTER + MAX_RADIUS / 2}
+            y={SIZE - PADDING + 22}
+            textAnchor="middle"
+            fill={s.color.right}
+            style={{ fontSize: 12, fontFamily: s.font.serif }}
+          >
+            Right
+          </text>
+        </>
+      )}
     </svg>
   )
 }
 
 /** Vertical half of the circle, as a path. */
-function halfCircle(side: 'left' | 'right'): string {
-  const top = CENTER - MAX_RADIUS
-  const bottom = CENTER + MAX_RADIUS
-  // sweep-flag 0 goes counter-clockwise (west side), 1 goes clockwise (east).
+function halfCircle(side: 'left' | 'right', center: number, maxRadius: number): string {
+  const top = center - maxRadius
+  const bottom = center + maxRadius
   const sweep = side === 'left' ? 0 : 1
-  return `M ${CENTER} ${top} A ${MAX_RADIUS} ${MAX_RADIUS} 0 0 ${sweep} ${CENTER} ${bottom} Z`
+  return `M ${center} ${top} A ${maxRadius} ${maxRadius} 0 0 ${sweep} ${center} ${bottom} Z`
 }

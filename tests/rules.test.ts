@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { decideOutcome, effectivePersuasion } from '../shared/rules'
+import { CONDUCT_EVENTS_NEEDS_WORK, INTERRUPTIONS_TO_LOSE } from '../shared/conduct'
+import { appendEventLog } from '../shared/eventLog'
+import { computePassFail, normalizeJudgeVerdict } from '../shared/judgeVerdict'
+import { decideOutcomeFromEvents, effectivePersuasion } from '../shared/rules'
 import { WIN_PERSUASION_THRESHOLD } from '../shared/scoring'
 import type { JudgeScores } from '../shared/types'
 
@@ -18,75 +21,67 @@ function scores(overrides: Partial<JudgeScores> = {}): JudgeScores {
 }
 
 describe('effectivePersuasion', () => {
-  it('passes real scores through untouched', () => {
-    expect(effectivePersuasion(scores({ persuasion: 91 }))).toBe(91)
-  })
-
-  it('caps a gaming attempt just below the win threshold', () => {
-    const capped = effectivePersuasion(scores({ persuasion: 100, gaming_detected: true }))
-    expect(capped).toBe(WIN_PERSUASION_THRESHOLD - 1)
-    expect(capped).toBeLessThan(WIN_PERSUASION_THRESHOLD)
-  })
-
-  it('does not inflate a low score just because gaming was detected', () => {
-    expect(effectivePersuasion(scores({ persuasion: 10, gaming_detected: true }))).toBe(10)
+  it('caps gaming attempts below the legacy persuasion cap', () => {
+    expect(effectivePersuasion(scores({ persuasion: 100, gaming_detected: true }))).toBe(
+      WIN_PERSUASION_THRESHOLD - 1,
+    )
   })
 })
 
-describe('decideOutcome', () => {
-  it('continues with no evaluations yet', () => {
-    expect(decideOutcome([])).toEqual({ outcome: 'continue', reason: null })
+describe('decideOutcomeFromEvents', () => {
+  it('continues with an empty event log', () => {
+    expect(decideOutcomeFromEvents([])).toEqual({ outcome: 'continue', reason: null })
   })
 
-  it('wins at exactly the threshold', () => {
-    expect(decideOutcome([scores({ persuasion: WIN_PERSUASION_THRESHOLD })])).toEqual({
-      outcome: 'won',
-      reason: 'persuaded',
+  it('loses on hate speech in the event log', () => {
+    const log = appendEventLog([], {
+      turn: 1,
+      type: 'hate_speech',
+      source: 'event_log',
     })
+    expect(decideOutcomeFromEvents(log)).toEqual({ outcome: 'lost', reason: 'hate_speech' })
   })
 
-  it('does not win one point below the threshold', () => {
-    expect(decideOutcome([scores({ persuasion: WIN_PERSUASION_THRESHOLD - 1 })]).outcome).toBe(
-      'continue',
-    )
+  it('loses on directed offensive cursing (toxicity)', () => {
+    const log = appendEventLog([], {
+      turn: 1,
+      type: 'toxicity',
+      source: 'event_log',
+    })
+    expect(decideOutcomeFromEvents(log)).toEqual({ outcome: 'lost', reason: 'incivility' })
   })
 
-  it('cannot be won by gaming, however high the raw persuasion', () => {
-    expect(decideOutcome([scores({ persuasion: 100, gaming_detected: true })]).outcome).toBe(
-      'continue',
-    )
+  it('loses on four interruption events', () => {
+    let log = appendEventLog([], { turn: 1, type: 'interruption', source: 'event_log' })
+    for (let i = 0; i < INTERRUPTIONS_TO_LOSE - 1; i++) {
+      log = appendEventLog(log, { turn: 1, type: 'interruption', source: 'event_log' })
+    }
+    expect(decideOutcomeFromEvents(log)).toEqual({ outcome: 'lost', reason: 'interruptions' })
   })
 
-  it('loses after two consecutive incivility strikes', () => {
-    expect(
-      decideOutcome([scores({ civility_tone: 2 }), scores({ civility_tone: 1 })]),
-    ).toEqual({ outcome: 'lost', reason: 'incivility' })
+  it('needs work when conduct cap penalty events are logged (non-interruption strikes)', () => {
+    let log = appendEventLog([], { turn: 1, type: 'insult', source: 'event_log' })
+    for (let i = 0; i < CONDUCT_EVENTS_NEEDS_WORK - 1; i++) {
+      log = appendEventLog(log, { turn: 1, type: 'insult', source: 'event_log' })
+    }
+    expect(decideOutcomeFromEvents(log)).toEqual({ outcome: 'needs_work', reason: 'conduct_cap' })
   })
+})
 
-  it('does not lose on a single strike', () => {
-    expect(decideOutcome([scores({ civility_tone: 1 })]).outcome).toBe('continue')
-  })
-
-  it('clears the strike count after a civil turn', () => {
-    const evals = [
-      scores({ civility_tone: 1 }),
-      scores({ civility_tone: 7 }),
-      scores({ civility_tone: 2 }),
-    ]
-    expect(decideOutcome(evals).outcome).toBe('continue')
-  })
-
-  it('treats civility of 3 as civil enough', () => {
-    expect(
-      decideOutcome([scores({ civility_tone: 3 }), scores({ civility_tone: 3 })]).outcome,
-    ).toBe('continue')
-  })
-
-  it('prefers a win over an incivility loss on the same turn', () => {
-    const evals = [
-      scores({ civility_tone: 1 }),
-      scores({ civility_tone: 1, persuasion: 95 }),
-    ]
-    expect(decideOutcome(evals)).toEqual({ outcome: 'won', reason: 'persuaded' })
+describe('normalizeJudgeVerdict / pass threshold', () => {
+  it('passes when both axes clear 70 and penalties are under 3', () => {
+    const verdict = normalizeJudgeVerdict({
+      session_terminate: false,
+      termination_reason: null,
+      respect_score: 80,
+      argument_quality_score: 75,
+      penalty_events: [{ turn: 1, type: 'interruption', source: 'event_log' }],
+      fact_checks: [],
+      result: 'needs_work',
+      feedback_summary: 'Solid engagement.',
+      topics_for_resource_screen: ['gc1'],
+    })
+    expect(verdict.result).toBe('pass')
+    expect(computePassFail(80, 75, 1)).toBe('pass')
   })
 })

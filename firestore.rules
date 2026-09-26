@@ -17,14 +17,14 @@ service cloud.firestore {
     // Fields the client is allowed to own on its profile document.
     function onlyClientProfileFields() {
       return request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly(['phone', 'createdAt', 'updatedAt', 'diagnostic']);
+        .hasOnly(['phone', 'createdAt', 'updatedAt', 'diagnostic', 'displayName']);
     }
 
     match /users/{uid} {
       allow get, list: if isOwner(uid);
 
       allow create: if isOwner(uid)
-        && request.resource.data.keys().hasOnly(['phone', 'createdAt', 'updatedAt', 'diagnostic']);
+        && request.resource.data.keys().hasOnly(['phone', 'createdAt', 'updatedAt', 'diagnostic', 'displayName']);
 
       allow update: if isOwner(uid) && onlyClientProfileFields();
 

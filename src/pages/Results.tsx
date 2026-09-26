@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
+import { listResourceLinks } from '@shared/factBank'
+import { normalizeSessionStatus, outcomeLossSummary } from '@shared/rules'
 import { getTopic } from '@shared/topics'
 import type { DebateSession, JudgeScores, SessionResults, SessionStatus } from '@shared/types'
 import { useAuth } from '../auth/context'
+import AnalyticsMetrics, { deriveAnalyticMetrics } from '../components/AnalyticsMetrics'
+import ShareResultHero, { HeroCircleFrame } from '../components/ShareResultHero'
+import { SiteBrandFooter } from '../components/SiteBrand'
 import Spectrum from '../components/Spectrum'
 import { finalizeSession, getSession } from '../lib/api'
 import * as s from '../theme'
@@ -122,69 +127,128 @@ export default function Results() {
   }
 
   const topic = getTopic(session.topic)
-  const won = status === 'won'
+  const verdict = status ? normalizeSessionStatus(status) : 'lost'
+  const won = verdict === 'passed'
   const scores = results.finalScores
+  const judgeVerdict = results.judgeVerdict
+  const resources = listResourceLinks(session.topic)
+  const highlightFactIds = new Set(judgeVerdict?.topics_for_resource_screen ?? [])
+  const metrics = deriveAnalyticMetrics(results, session)
+
+  const topicLine = `${topic.label} — you argued the ${session.userSide === 'left' ? 'left' : 'right'} side.`
+  const lossReason = outcomeLossSummary(session.outcomeReason, verdict)
 
   return (
-    <div style={{ ...s.page, justifyContent: 'flex-start', paddingTop: 48 }}>
-      <div style={{ ...s.card, maxWidth: 560 }}>
-        <span style={s.label}>Your polarization</span>
-
-        <div style={{ margin: '18px 0 8px' }}>
-          <Spectrum results={results} />
-        </div>
-
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+    <div
+      style={{
+        ...s.page,
+        justifyContent: 'flex-start',
+        padding: 0,
+        minHeight: '100dvh',
+        overflowY: 'auto',
+        background: won ? s.color.bg : s.color.loseWash,
+      }}
+    >
+      <ShareResultHero
+        won={won}
+        topicLabel={topic.label}
+        detailLine={lossReason ?? undefined}
+        center={
           <div
             style={{
-              fontSize: 40,
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              boxSizing: 'border-box',
+            }}
+          >
+            <span
+              style={{
+                display: 'block',
+                marginBottom: 10,
+                fontSize: 15,
+                color: s.color.textMuted,
+                fontFamily: s.font.serif,
+              }}
+            >
+              Where you are politically
+            </span>
+            <HeroCircleFrame compact={!won}>
+              <div style={{ width: '96%', marginLeft: 'auto', marginRight: 'auto' }}>
+                <Spectrum results={results} compact labeled />
+              </div>
+            </HeroCircleFrame>
+          </div>
+        }
+        metrics={<AnalyticsMetrics metrics={metrics} lossReason={lossReason} />}
+      />
+
+      <div
+        id="results-analytics"
+        style={{
+          ...s.card,
+          maxWidth: 560,
+          width: '100%',
+          marginLeft: 'auto',
+          marginRight: 'auto',
+          paddingTop: 28,
+          paddingBottom: 24,
+          paddingLeft: `max(20px, env(safe-area-inset-left))`,
+          paddingRight: `max(20px, env(safe-area-inset-right))`,
+          boxSizing: 'border-box',
+          background: s.color.bg,
+        }}
+      >
+        <h2 style={{ ...s.heading, fontSize: 20, marginBottom: 8 }}>Analytics</h2>
+        <p style={{ ...s.subheading, fontSize: 14, marginBottom: 24 }}>
+          Scores, takeaways, and sources from this debate.
+        </p>
+
+        {!won && verdict === 'needs_work' && (
+          <p style={{ ...s.subheading, fontSize: 14, marginBottom: 20 }}>
+            You did not clear the pass bar this time — rematch this topic after reviewing the
+            feedback below.
+          </p>
+        )}
+
+        <span style={s.label}>Where you sit politically</span>
+
+        <div style={{ margin: '12px 0 4px' }}>
+          <Spectrum results={results} labeled />
+        </div>
+
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div
+            style={{
+              fontSize: 42,
               fontWeight: 700,
-              letterSpacing: '-0.03em',
               lineHeight: 1,
-              color: s.color.accent,
+              color: s.color.text,
+              fontFamily: s.font.serif,
             }}
           >
             {Math.round(results.polarizationScore * 100)}
             <span style={{ fontSize: 18, color: s.color.textFaint }}>/100</span>
           </div>
           <div style={{ fontSize: 13, color: s.color.textMuted, marginTop: 8 }}>
-            The bright dot is you. Faint dots are your four topics. Closer to the center means
-            more open to the other side.
+            The bright dot is you. Faint dots are your topics. Closer to the center means more open
+            to the other side.
           </div>
         </div>
 
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '16px 18px',
-            background: won ? 'rgba(63, 185, 80, 0.09)' : 'rgba(212, 84, 74, 0.09)',
-            border: `1px solid ${won ? 'rgba(63, 185, 80, 0.3)' : 'rgba(212, 84, 74, 0.3)'}`,
-            borderRadius: 12,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 15,
-              fontWeight: 700,
-              letterSpacing: '0.04em',
-              color: won ? s.color.win : s.color.lose,
-            }}
-          >
-            {won ? 'WON' : 'LOST'}
-          </div>
-          <div style={{ fontSize: 14, color: s.color.textMuted, lineHeight: 1.45 }}>
-            {topic.label} — you argued the {session.userSide === 'left' ? 'left' : 'right'} side.
-          </div>
+        <div style={{ marginBottom: 28 }}>
+          <span style={s.label}>How you argued (1–10)</span>
+          <AnalyticsMetrics metrics={metrics} lossReason={lossReason} />
         </div>
 
-        {/* Component split, so the score is not a black box. */}
         <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
           <Component
             label="From your answers"
             value={results.diagnosticComponent}
-            help="How strongly you hold your views across all four topics."
+            help="How strongly you hold your views across the diagnostic topics."
           />
           <Component
             label="From the debate"
@@ -197,12 +261,54 @@ export default function Results() {
           How you argued
         </h2>
         <p style={{ ...s.subheading, fontSize: 13, marginBottom: 18 }}>
-          {scores
-            ? 'Scored by an impartial judge that never saw which side you were on.'
+          {judgeVerdict || scores
+            ? 'Scored by a separate judge model — not the voice opponent.'
             : 'There was not enough conversation to score.'}
         </p>
 
-        {scores &&
+        {judgeVerdict && !judgeVerdict.session_terminate && (
+          <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+            <Component
+              label="Respectfulness"
+              value={judgeVerdict.respect_score / 100}
+              help="Interruptions, tone, and dismissiveness (from event log + transcript)."
+            />
+            <Component
+              label="Argument quality"
+              value={judgeVerdict.argument_quality_score / 100}
+              help="Facts from the verified bank, answering their points, and consistency."
+            />
+          </div>
+        )}
+
+        {judgeVerdict && judgeVerdict.fact_checks.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <span style={s.label}>Fact checks</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+              {judgeVerdict.fact_checks.slice(0, 6).map((check, index) => (
+                <div
+                  key={index}
+                  style={{
+                    padding: '12px 14px',
+                    border: `1px solid ${highlightFactIds.has(check.fact_id ?? '') ? s.color.win : s.color.border}`,
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    color: s.color.textMuted,
+                  }}
+                >
+                  <span style={{ fontFamily: s.font.mono, color: s.color.textFaint }}>
+                    Turn {check.turn} · {check.status}
+                    {check.fact_id ? ` · ${check.fact_id}` : ''}
+                  </span>
+                  <div style={{ marginTop: 6, color: s.color.text }}>{check.claim}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!judgeVerdict &&
+          scores &&
           CRITERIA.map((criterion) => {
             const value = scores[criterion.key] as number
             return (
@@ -223,9 +329,8 @@ export default function Results() {
                 </div>
                 <div
                   style={{
-                    height: 5,
+                    height: 3,
                     background: s.color.bg,
-                    borderRadius: 999,
                     overflow: 'hidden',
                   }}
                 >
@@ -233,8 +338,7 @@ export default function Results() {
                     style={{
                       height: '100%',
                       width: `${(value / criterion.max) * 100}%`,
-                      background: s.color.accent,
-                      borderRadius: 999,
+                      background: s.color.text,
                     }}
                   />
                 </div>
@@ -245,6 +349,52 @@ export default function Results() {
             )
           })}
 
+        {!judgeVerdict && scores?.unverified_fact_citation && (
+          <div
+            style={{
+              marginTop: 20,
+              padding: '14px 16px',
+              border: `1px solid ${s.color.border}`,
+              fontSize: 14,
+              lineHeight: 1.55,
+              color: s.color.textMuted,
+            }}
+          >
+            You cited at least one specific fact we could not verify against this topic&apos;s
+            approved fact bank. That does not mean you were wrong — bring a source next time, or
+            stick to the verified list in your rematch.
+          </div>
+        )}
+
+        <h2 style={{ ...s.heading, fontSize: 17, marginTop: 30, marginBottom: 14 }}>
+          Go deeper on this topic
+        </h2>
+        <p style={{ ...s.subheading, fontSize: 13, marginBottom: 14 }}>
+          Two strong cases on each side (not strawmen) plus one balanced overview.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
+          {resources.map((link, index) => (
+            <a
+              key={`${link.url}-${index}`}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'block',
+                padding: '12px 14px',
+                border: `1px solid ${s.color.border}`,
+                color: s.color.text,
+                textDecoration: 'none',
+                fontSize: 14,
+                lineHeight: 1.45,
+              }}
+            >
+              <span style={{ color: s.color.textFaint, fontSize: 12 }}>{link.role}</span>
+              <div style={{ marginTop: 4 }}>{link.title}</div>
+            </a>
+          ))}
+        </div>
+
         <h2 style={{ ...s.heading, fontSize: 17, marginTop: 30, marginBottom: 14 }}>
           What to take away
         </h2>
@@ -254,12 +404,11 @@ export default function Results() {
               key={index}
               style={{
                 padding: '14px 16px',
-                fontSize: 14,
+                fontSize: 15,
                 lineHeight: 1.55,
                 color: s.color.text,
-                background: s.color.bg,
+                background: 'transparent',
                 border: `1px solid ${s.color.border}`,
-                borderRadius: 10,
               }}
             >
               {takeaway}
@@ -283,11 +432,8 @@ export default function Results() {
               <div key={index}>
                 <div
                   style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    color: entry.speaker === 'user' ? s.color.accent : s.color.textFaint,
+                    fontSize: 13,
+                    color: entry.speaker === 'user' ? s.color.text : s.color.textFaint,
                     marginBottom: 4,
                   }}
                 >
@@ -306,6 +452,11 @@ export default function Results() {
             Retake the questions
           </button>
         </div>
+
+        <SiteBrandFooter
+          topicLine={topicLine}
+          style={{ marginTop: 'auto', paddingTop: 36 }}
+        />
       </div>
     </div>
   )
@@ -325,9 +476,8 @@ function Component({
       style={{
         flex: 1,
         padding: '14px 16px',
-        background: s.color.bg,
+        background: 'transparent',
         border: `1px solid ${s.color.border}`,
-        borderRadius: 12,
       }}
     >
       <div style={{ fontSize: 12, color: s.color.textFaint, marginBottom: 6 }}>{label}</div>

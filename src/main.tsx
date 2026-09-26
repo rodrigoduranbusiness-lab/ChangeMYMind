@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 
+import Grain from './components/Grain'
 import SetupNotice from './SetupNotice'
 import './index.css'
 
@@ -23,6 +24,7 @@ if (missing.length) {
   root.render(
     <StrictMode>
       <SetupNotice missing={[...missing]} />
+      <Grain />
     </StrictMode>,
   )
 } else {
@@ -38,6 +40,7 @@ if (missing.length) {
           <App />
         </AuthProvider>
       </BrowserRouter>
+      <Grain />
     </StrictMode>,
   )
 }

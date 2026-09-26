@@ -9,13 +9,39 @@ import { ensureUserProfile, getUserProfile } from '../lib/api'
 import { AuthContext } from './context'
 import type { AuthState } from './context'
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timer)
+        reject(error)
+      },
+    )
+  })
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [diagnostic, setDiagnostic] = useState<DiagnosticResult | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    return onAuthStateChanged(auth, async (nextUser) => {
+    let settled = false
+    const failsafe = window.setTimeout(() => {
+      if (!settled) {
+        console.warn('[Auth] Auth state took too long; continuing without a session.')
+        setLoading(false)
+      }
+    }, 5_000)
+
+    const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
+      settled = true
+      window.clearTimeout(failsafe)
       setUser(nextUser)
 
       if (!nextUser) {
@@ -24,9 +50,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
+      // Never block the whole app on App Check — a hung enterprise.js load used
+      // to leave a blank spinner forever.
+      void import('../lib/appCheck')
+        .then(({ ensureAppCheck }) => ensureAppCheck())
+        .catch((error) => {
+          console.error('[App Check] Did not initialize.', error)
+        })
+
       try {
-        // First sign-in creates users/{uid}; later sign-ins just read it.
-        const profile = await ensureUserProfile(nextUser.uid, nextUser.phoneNumber)
+        const profile = await withTimeout(
+          ensureUserProfile(nextUser.uid, nextUser.phoneNumber),
+          8_000,
+          'Profile load',
+        )
         setDiagnostic(profile.diagnostic ?? null)
       } catch (error) {
         console.error('Failed to load profile', error)
@@ -35,6 +72,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false)
       }
     })
+
+    return () => {
+      settled = true
+      window.clearTimeout(failsafe)
+      unsubscribe()
+    }
   }, [])
 
   const value = useMemo<AuthState>(

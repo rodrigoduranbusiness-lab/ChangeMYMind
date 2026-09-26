@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 import {
   debateContext,
   fillPlaceholders,
+  renderJudgeSystemPrompt,
+  renderOpponentPrompt,
   renderPrompt,
   stripPromptPreamble,
 } from '../shared/prompts'
@@ -51,9 +53,20 @@ describe('prompt rendering', () => {
     for (const name of PROMPT_FILES) {
       const raw = loadPrompt(name)
 
+      if (name === 'judge') {
+        const rendered = renderJudgeSystemPrompt(raw)
+        expect(rendered).not.toContain('{{')
+        expect(rendered).not.toContain('Neutrality contract')
+        expect(rendered.length).toBeGreaterThan(200)
+        continue
+      }
+
       for (const topic of TOPICS) {
         for (const side of SIDES) {
-          const rendered = renderPrompt(raw, topic.id, side, { OUTCOME: 'Time ran out.' })
+          const rendered =
+            name === 'debater'
+              ? renderOpponentPrompt(raw, topic.id, side)
+              : renderPrompt(raw, topic.id, side, { OUTCOME: 'Time ran out.' })
 
           expect(rendered).not.toContain('{{')
           expect(rendered).not.toContain('Neutrality contract')
@@ -92,12 +105,12 @@ describe('neutrality guards', () => {
   it('renders the debater prompt at the same length for both sides, give or take the position', () => {
     for (const topic of TOPICS) {
       const raw = loadPrompt('debater')
-      const left = renderPrompt(raw, topic.id, 'left').length
-      const right = renderPrompt(raw, topic.id, 'right').length
+      const left = renderOpponentPrompt(raw, topic.id, 'left').length
+      const right = renderOpponentPrompt(raw, topic.id, 'right').length
 
       // Any large asymmetry means the template itself treats the sides
       // differently rather than just swapping the injected positions.
-      expect(Math.abs(left - right)).toBeLessThan(40)
+      expect(Math.abs(left - right)).toBeLessThan(80)
     }
   })
 

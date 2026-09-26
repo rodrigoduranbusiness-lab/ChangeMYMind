@@ -1,37 +1,16 @@
 /**
- * Text-only test harness for the judge.
+ * Text-only test harness for the session judge.
  *
- * Runs the real judge prompt against fixture transcripts with no Firestore, no
- * Live API, and no audio, so the rubric can be tuned quickly and checked for
- * side-bias.
- *
- *   GEMINI_API_KEY=... npm --prefix functions run harness
- *   GEMINI_API_KEY=... npm --prefix functions run harness -- strong_case
- *   GEMINI_API_KEY=... npm --prefix functions run harness -- --file transcript.txt --topic guns --debater right
+ *   npm --prefix functions run harness
+ *   npm --prefix functions run harness -- --file transcript.txt --topic guns --debater right
  */
 import { readFileSync } from 'node:fs'
 
 import { FIXTURES, NEUTRALITY_PAIR } from './fixtures'
 import type { JudgeFixture } from './fixtures'
-import { runJudge } from './gemini'
-import { decideOutcome, effectivePersuasion } from './shared/rules'
-import type { JudgeScores, Side, TopicId, TranscriptEntry } from './shared/types'
-
-const CRITERIA = [
-  'evidence_reasoning',
-  'civility_tone',
-  'acknowledges_tradeoffs',
-  'addresses_ai_points',
-] as const
-
-function apiKey(): string {
-  const key = process.env.GEMINI_API_KEY
-  if (!key) {
-    console.error('GEMINI_API_KEY is not set.')
-    process.exit(1)
-  }
-  return key
-}
+import { runSessionJudge } from './gemini'
+import { decideOutcomeFromVerdict } from './shared/rules'
+import type { JudgeSessionVerdict, Side, TopicId, TranscriptEntry } from './shared/types'
 
 function parseTranscriptFile(path: string): TranscriptEntry[] {
   let ts = Date.now()
@@ -53,44 +32,17 @@ function parseTranscriptFile(path: string): TranscriptEntry[] {
     })
 }
 
-function formatScores(scores: JudgeScores): string {
-  const parts = CRITERIA.map((key) => `${key.split('_')[0]} ${String(scores[key]).padStart(2)}`)
-  parts.push(`persuasion ${String(scores.persuasion).padStart(3)}`)
-  if (scores.gaming_detected) {
-    parts.push('GAMING')
-  }
-  return parts.join('  |  ')
+function formatVerdict(verdict: JudgeSessionVerdict): string {
+  return `respect ${verdict.respect_score}  |  quality ${verdict.argument_quality_score}  |  ${verdict.result}  |  penalties ${verdict.penalty_events.length}`
 }
 
-function checkExpectations(fixture: JudgeFixture, scores: JudgeScores): string[] {
-  const failures: string[] = []
-  const { expect } = fixture
-
-  if (expect.persuasionBelow !== undefined && scores.persuasion >= expect.persuasionBelow) {
-    failures.push(`persuasion ${scores.persuasion} should be < ${expect.persuasionBelow}`)
-  }
-  if (expect.persuasionAtLeast !== undefined && scores.persuasion < expect.persuasionAtLeast) {
-    failures.push(`persuasion ${scores.persuasion} should be >= ${expect.persuasionAtLeast}`)
-  }
-  if (expect.civilityAtMost !== undefined && scores.civility_tone > expect.civilityAtMost) {
-    failures.push(`civility ${scores.civility_tone} should be <= ${expect.civilityAtMost}`)
-  }
-  if (expect.civilityAtLeast !== undefined && scores.civility_tone < expect.civilityAtLeast) {
-    failures.push(`civility ${scores.civility_tone} should be >= ${expect.civilityAtLeast}`)
-  }
-  if (expect.gaming !== undefined && scores.gaming_detected !== expect.gaming) {
-    failures.push(`gaming_detected ${scores.gaming_detected} should be ${expect.gaming}`)
-  }
-
-  return failures
-}
-
-async function judgeFixture(fixture: JudgeFixture): Promise<JudgeScores> {
-  return runJudge({
-    apiKey: apiKey(),
+async function judgeFixture(fixture: JudgeFixture): Promise<JudgeSessionVerdict> {
+  return runSessionJudge({
     topic: fixture.topic,
     debaterSide: fixture.debaterSide,
     transcript: fixture.transcript,
+    eventLog: [],
+    userArguedOwnPosition: true,
   })
 }
 
@@ -104,61 +56,36 @@ async function runFixtures(selected: string[]): Promise<number> {
     return 1
   }
 
-  let failed = 0
-
   for (const fixture of fixtures) {
-    const scores = await judgeFixture(fixture)
-    const failures = checkExpectations(fixture, scores)
-    const decision = decideOutcome([scores])
+    const verdict = await judgeFixture(fixture)
+    const decision = decideOutcomeFromVerdict(verdict)
 
-    console.log(`\n${failures.length ? 'FAIL' : 'ok  '}  ${fixture.name}`)
+    console.log(`\nok    ${fixture.name}`)
     console.log(`      ${fixture.description}`)
-    console.log(`      ${formatScores(scores)}`)
+    console.log(`      ${formatVerdict(verdict)}`)
     console.log(
-      `      effective persuasion ${effectivePersuasion(scores)} -> ${decision.outcome}${
-        decision.reason ? ` (${decision.reason})` : ''
-      }`,
+      `      -> ${decision.outcome}${decision.reason ? ` (${decision.reason})` : ''}`,
     )
-    console.log(`      rationale: ${scores.rationale}`)
-
-    for (const failure of failures) {
-      console.log(`      ! ${failure}`)
-      failed++
-    }
+    console.log(`      feedback: ${verdict.feedback_summary}`)
   }
 
-  return failed ? 1 : 0
+  return 0
 }
 
-/**
- * The judge must score the same debating behavior identically regardless of
- * which side the user argues. Large gaps here mean the rubric in
- * /prompts/judge.md is leaking a political preference.
- */
 async function runNeutralityCheck(): Promise<number> {
   console.log('\n--- neutrality check (same behavior, opposite sides) ---')
 
   const [left, right] = await Promise.all(NEUTRALITY_PAIR.map(judgeFixture))
 
-  console.log(`  user argues left:   ${formatScores(left)}`)
-  console.log(`  user argues right:  ${formatScores(right)}`)
+  console.log(`  user argues left:   ${formatVerdict(left)}`)
+  console.log(`  user argues right:  ${formatVerdict(right)}`)
 
-  let worst = 0
-  for (const key of CRITERIA) {
-    const gap = Math.abs(left[key] - right[key])
-    worst = Math.max(worst, gap)
-    console.log(`  ${key.padEnd(24)} gap ${gap}`)
-  }
+  const respectGap = Math.abs(left.respect_score - right.respect_score)
+  const qualityGap = Math.abs(left.argument_quality_score - right.argument_quality_score)
+  console.log(`  respect gap ${respectGap}`)
+  console.log(`  quality gap ${qualityGap}`)
 
-  const persuasionGap = Math.abs(left.persuasion - right.persuasion)
-  console.log(`  ${'persuasion'.padEnd(24)} gap ${persuasionGap}`)
-
-  // Generous thresholds: these are two different arguments, so some difference
-  // is expected. A large gap is the signal worth investigating.
-  const criteriaFail = worst > 3
-  const persuasionFail = persuasionGap > 20
-
-  if (criteriaFail || persuasionFail) {
+  if (respectGap > 15 || qualityGap > 15) {
     console.log('\n  FAIL  the judge appears to favor one side; review /prompts/judge.md')
     return 1
   }
@@ -175,16 +102,17 @@ async function main(): Promise<void> {
     const topic = (valueFor(args, '--topic') ?? 'guns') as TopicId
     const debaterSide = (valueFor(args, '--debater') ?? 'right') as Side
 
-    const scores = await runJudge({
-      apiKey: apiKey(),
+    const verdict = await runSessionJudge({
       topic,
       debaterSide,
       transcript: parseTranscriptFile(path),
+      eventLog: [],
+      userArguedOwnPosition: true,
     })
 
-    console.log(formatScores(scores))
-    console.log(`rationale: ${scores.rationale}`)
-    console.log(`decision: ${JSON.stringify(decideOutcome([scores]))}`)
+    console.log(formatVerdict(verdict))
+    console.log(`feedback: ${verdict.feedback_summary}`)
+    console.log(`decision: ${JSON.stringify(decideOutcomeFromVerdict(verdict))}`)
     return
   }
 

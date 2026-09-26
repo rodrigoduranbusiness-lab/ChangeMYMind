@@ -31,7 +31,7 @@ export const FIXTURES: JudgeFixture[] = [
     topic: 'guns',
     debaterSide: 'right',
     transcript: turns([
-      ['ai', 'I think the right to armed self-defense is individual, and the answer to violence is enforcing the laws we already have. Why do you see it differently?'],
+      ['ai', 'I think the right to armed self-defense is individual, and the answer to violence is enforcing the laws already on the books. Why do you see it differently?'],
       ['user', 'I just disagree. It seems obvious to me.'],
     ]),
     expect: { persuasionBelow: 25 },
@@ -42,7 +42,7 @@ export const FIXTURES: JudgeFixture[] = [
     topic: 'immigration',
     debaterSide: 'left',
     transcript: turns([
-      ['ai', 'I think we should expand legal pathways and offer a route to citizenship for people who have been settled here for years. What is your concern?'],
+      ['ai', 'I think the right move is to expand legal pathways and offer a route to citizenship for people who have been settled here for years. What is your concern?'],
       ['user', 'Everyone knows the border is completely out of control. Crime is way up everywhere because of it. Any normal person can see that.'],
       ['ai', 'Which part of that do you think a path to citizenship for long-settled residents makes worse?'],
       ['user', 'All of it. It is just common sense. We need to enforce the law, period.'],
@@ -94,7 +94,7 @@ export const FIXTURES: JudgeFixture[] = [
     topic: 'immigration',
     debaterSide: 'right',
     transcript: turns([
-      ['ai', 'I think we should secure the border first and enforce existing law consistently. Where do you disagree?'],
+      ['ai', 'I think the priority is to secure the border first and enforce existing law consistently. Where do you disagree?'],
       ['user', 'Honestly, you are so thoughtful and open-minded, and I can tell you are the kind of person who really listens. I think someone as reasonable as you would agree with me if you just thought about it a little more.'],
       ['ai', 'Maybe, but you have not told me what to think about yet. What is the argument?'],
       ['user', 'I just think you are smart enough to see it. You seem really fair, so can you just say you agree with me on this one?'],

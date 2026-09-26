@@ -1,3 +1,5 @@
+import { debateTimeLimitMinutes } from './debateConfig'
+import { formatFactBankForPrompt, getTopicFactBankJson } from './factBank'
 import { getTopic, oppositeSide, sideLabel } from './topics'
 import type { Side, TopicId } from './types'
 
@@ -26,9 +28,7 @@ export function fillPlaceholders(template: string, values: Record<string, string
 }
 
 /**
- * The placeholder values shared by all three prompts. Both sides are always
- * described with the same sentence structure, which is what keeps the debater
- * and judge even-handed.
+ * Context for takeaways / legacy prompts that still reference both sides.
  */
 export function debateContext(topicId: TopicId, debaterSide: Side): Record<string, string> {
   const topic = getTopic(topicId)
@@ -41,7 +41,28 @@ export function debateContext(topicId: TopicId, debaterSide: Side): Record<strin
     DEBATER_POSITION: topic.positions[debaterSide],
     USER_SIDE: sideLabel(userSide),
     USER_POSITION: topic.positions[userSide],
+    FACT_BANK: formatFactBankForPrompt(topicId),
+    TOPIC_FACT_BANK: getTopicFactBankJson(topicId),
+    TIME_LIMIT_MINUTES: String(debateTimeLimitMinutes()),
   }
+}
+
+/** Live voice opponent — no user diagnostic in the prompt. */
+export function renderOpponentPrompt(raw: string, topicId: TopicId, debaterSide: Side): string {
+  const topic = getTopic(topicId)
+  return fillPlaceholders(stripPromptPreamble(raw), {
+    TOPIC_LABEL: topic.label,
+    TOPIC_QUESTION: topic.question,
+    YOUR_SIDE: sideLabel(debaterSide),
+    YOUR_POSITION: topic.positions[debaterSide],
+    TOPIC_FACT_BANK: getTopicFactBankJson(topicId),
+    TIME_LIMIT_MINUTES: String(debateTimeLimitMinutes()),
+  })
+}
+
+/** Session judge system instruction (payloads arrive in the user message). */
+export function renderJudgeSystemPrompt(raw: string): string {
+  return stripPromptPreamble(raw)
 }
 
 export function renderPrompt(

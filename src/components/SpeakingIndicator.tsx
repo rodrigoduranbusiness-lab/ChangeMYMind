@@ -1,59 +1,64 @@
 import type { SpeakerState } from '../lib/liveDebate'
 import * as s from '../theme'
 
+const DOT_COUNT = 16
+const RADIUS = 72
+const DOT_SIZE = 7
+
 /**
- * The only live feedback the user gets, alongside the clock: who is talking.
- * No score, no meter, no hint about how the debate is going.
+ * Circle of dots — still while the agent waits, slowly spinning and breathing
+ * while it talks. The only live presence cue beside the clock.
  */
 export default function SpeakingIndicator({ speaker }: { speaker: SpeakerState }) {
-  return (
-    <div style={{ display: 'flex', gap: 12, width: '100%' }}>
-      <Side label="You" active={speaker === 'user'} accent={s.color.accent} />
-      <Side label="The AI" active={speaker === 'ai'} accent={s.color.left} />
-    </div>
-  )
-}
+  const talking = speaker === 'ai'
 
-function Side({ label, active, accent }: { label: string; active: boolean; accent: string }) {
   return (
     <div
+      role="status"
+      aria-live="polite"
+      aria-label={talking ? 'The AI is speaking' : 'Waiting'}
       style={{
-        flex: 1,
+        width: RADIUS * 2 + DOT_SIZE * 2,
+        height: RADIUS * 2 + DOT_SIZE * 2,
+        marginLeft: 'auto',
+        marginRight: 'auto',
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
-        gap: 12,
-        padding: '22px 16px',
-        background: active ? 'rgba(255, 255, 255, 0.04)' : 'transparent',
-        border: `1px solid ${active ? accent : s.color.border}`,
-        borderRadius: 14,
-        transition: 'border-color 150ms ease, background 150ms ease',
+        justifyContent: 'center',
+        animation: talking ? 'cg-orb-breathe 2.8s ease-in-out infinite' : undefined,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 28 }}>
-        {[0, 1, 2, 3, 4].map((bar) => (
-          <div
-            key={bar}
-            style={{
-              width: 4,
-              height: active ? '100%' : 4,
-              borderRadius: 999,
-              background: active ? accent : s.color.borderStrong,
-              transformOrigin: 'bottom',
-              animation: active ? `cg-bar 900ms ease-in-out ${bar * 110}ms infinite` : 'none',
-            }}
-          />
-        ))}
-      </div>
       <div
         style={{
-          fontSize: 13,
-          fontWeight: 600,
-          letterSpacing: '0.04em',
-          color: active ? s.color.text : s.color.textFaint,
+          position: 'relative',
+          width: RADIUS * 2,
+          height: RADIUS * 2,
+          animation: talking ? 'cg-orb-spin 14s linear infinite' : undefined,
         }}
       >
-        {active ? `${label} — speaking` : label}
+        {Array.from({ length: DOT_COUNT }, (_, index) => {
+          const angle = (index / DOT_COUNT) * 360
+          return (
+            <span
+              key={index}
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                width: DOT_SIZE,
+                height: DOT_SIZE,
+                marginLeft: -DOT_SIZE / 2,
+                marginTop: -DOT_SIZE / 2,
+                borderRadius: '50%',
+                background: s.color.text,
+                opacity: talking ? 0.95 : 0.55,
+                transform: `rotate(${angle}deg) translateY(-${RADIUS}px)`,
+                transition: 'opacity 400ms ease',
+              }}
+            />
+          )
+        })}
       </div>
     </div>
   )

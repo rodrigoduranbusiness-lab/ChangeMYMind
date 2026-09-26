@@ -1,11 +1,17 @@
-import { ResponseModality, getLiveGenerativeModel } from 'firebase/ai'
-import type { LiveServerContent, LiveSession } from 'firebase/ai'
-
 import debaterPromptRaw from '../../prompts/debater.md?raw'
-import { renderPrompt } from '@shared/prompts'
+import {
+  detectInstantLossSpeech,
+  INTERRUPTION_LEVEL_THRESHOLD,
+  INTERRUPTION_OVERLAP_MS,
+  USER_MAX_SPEECH_MS,
+  YELLING_LEVEL_THRESHOLD,
+  YELLING_SUSTAIN_MS,
+} from '@shared/conduct'
+import { renderOpponentPrompt } from '@shared/prompts'
 import type { Side, TopicId, TranscriptEntry } from '@shared/types'
-import { LIVE_MODEL, LIVE_VOICE, ai } from '../firebase'
+import { mintLiveAccess } from './api'
 import { AudioPlayer, MicrophoneCapture, base64ToArrayBuffer, pcm16ToBase64 } from './audio'
+import { VertexLiveSession, type VertexLiveServerContent } from './vertexLive'
 
 /** Who the UI should show as talking. This is the only live signal the user gets. */
 export type SpeakerState = 'idle' | 'user' | 'ai'
@@ -19,6 +25,16 @@ export interface DebateHandlers {
   onSpeakerChange: (speaker: SpeakerState) => void
   /** Fires when the model finishes a turn, with both sides' transcripts. */
   onTurnComplete: (turn: CompletedTurn) => void
+  /** User spoke over the debater's audio (once per overlap). */
+  onInterruption?: () => void
+  /** User spoke continuously too long without yielding. */
+  onLongTurn?: () => void
+  /** While the user holds the floor (AI silent), elapsed time toward the 30s cap. */
+  onUserTurnSpeech?: (progress: { elapsedMs: number; maxMs: number } | null) => void
+  /** Sustained yelling over the mic threshold. */
+  onYelling?: () => void
+  /** Slur or directed abuse detected in user transcription. */
+  onInstantSpeechViolation?: (reason: 'hate_speech' | 'incivility', text: string) => void
   /** The socket dropped. The caller decides whether to pause and reconnect. */
   onConnectionLost: () => void
 }
@@ -30,10 +46,28 @@ export interface DebateControllerOptions {
 }
 
 /** Mic RMS above this counts as the user speaking. */
-const VOICE_LEVEL_THRESHOLD = 0.02
+const VOICE_LEVEL_THRESHOLD = 0.035
 
 /** How long after the last voiced frame we keep showing the user as speaking. */
 const VOICE_HOLD_MS = 400
+
+/** Brief pauses in speech do not reset the 30s turn clock or hide the countdown. */
+const TURN_SILENCE_RESET_MS = 850
+
+/** After this much silence, nudge Live API that the user's turn ended (hybrid VAD). */
+const USER_END_OF_SPEECH_MS = 900
+
+/** If the model still has not spoken after we ended the user's turn, nudge once. */
+const AI_REPLY_NUDGE_MS = 2_200
+
+/** After an interrupt, give the model a beat to resume audio. */
+const INTERRUPTED_RESUME_MS = 1_400
+
+/** Watchdog: no AI audio this long after we expect a reply → nudge again. */
+const AI_STALL_MS = 4_500
+
+const MIN_NUDGE_GAP_MS = 7_000
+const MAX_NUDGES_BEFORE_TURN = 3
 
 const SPEAKER_POLL_MS = 120
 
@@ -42,7 +76,7 @@ export class DebateController {
   private debaterSide: Side
   private handlers: DebateHandlers
 
-  private session?: LiveSession
+  private session?: VertexLiveSession
   private mic?: MicrophoneCapture
   private player?: AudioPlayer
 
@@ -51,6 +85,22 @@ export class DebateController {
 
   private aiPlaying = false
   private lastVoiceAt = 0
+  private yellingSince: number | null = null
+  private yellingReported = false
+  private instantSpeechReported = false
+  private overlapReported = false
+  private overlapSince: number | null = null
+  private userSpeechSince: number | null = null
+  private longTurnReported = false
+  private lastTurnSpeechNotifyAt = 0
+  private userTurnEndSignaled = false
+  private userSpokeSinceTurnEnd = false
+  private aiReplyNudgeTimer?: number
+  private interruptedResumeTimer?: number
+  private opponentReplyDueAt: number | null = null
+  private lastAiAudioAt = 0
+  private nudgeCountThisCycle = 0
+  private lastNudgeAt = 0
   private speaker: SpeakerState = 'idle'
   private speakerTimer?: number
 
@@ -69,7 +119,15 @@ export class DebateController {
    */
   async start(): Promise<void> {
     this.player = new AudioPlayer((playing) => {
+      const wasPlaying = this.aiPlaying
       this.aiPlaying = playing
+      if (playing && !wasPlaying) {
+        this.onOpponentAudio()
+        this.overlapReported = false
+        this.overlapSince = null
+        this.userSpeechSince = null
+        this.notifyUserTurnSpeech()
+      }
     })
     await this.player.resume()
 
@@ -78,7 +136,13 @@ export class DebateController {
     this.mic = await MicrophoneCapture.start(({ pcm16, level }) => {
       if (level > VOICE_LEVEL_THRESHOLD) {
         this.lastVoiceAt = Date.now()
+        if (!this.aiPlaying) {
+          this.userSpokeSinceTurnEnd = true
+        }
       }
+      this.trackYelling(level)
+      this.trackInterruption(level)
+      this.trackLongTurn(level)
       void this.sendAudio(pcm16)
     })
 
@@ -126,6 +190,8 @@ export class DebateController {
       window.clearInterval(this.speakerTimer)
       this.speakerTimer = undefined
     }
+    this.clearAiReplyNudge()
+    this.clearInterruptedResumeNudge()
 
     await this.mic?.stop()
     this.mic = undefined
@@ -145,34 +211,25 @@ export class DebateController {
   }
 
   private async connect(): Promise<void> {
-    const liveModel = getLiveGenerativeModel(ai, {
-      model: LIVE_MODEL,
-      generationConfig: {
-        responseModalities: [ResponseModality.AUDIO],
-        // Both directions are transcribed so the judge and the results screen
-        // see the full conversation.
-        inputAudioTranscription: {},
-        outputAudioTranscription: {},
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: LIVE_VOICE } },
-        },
-        temperature: 0.8,
-      },
-      systemInstruction: renderPrompt(debaterPromptRaw, this.topic, this.debaterSide),
+    const access = await mintLiveAccess()
+    const session = await VertexLiveSession.connect({
+      accessToken: access.accessToken,
+      wsUrl: access.wsUrl,
+      model: access.model,
+      systemInstruction: renderOpponentPrompt(debaterPromptRaw, this.topic, this.debaterSide),
     })
-
-    this.session = await liveModel.connect()
-    void this.runReceiveLoop(this.session)
+    this.session = session
+    void this.runReceiveLoop(session)
   }
 
-  private async runReceiveLoop(session: LiveSession): Promise<void> {
+  private async runReceiveLoop(session: VertexLiveSession): Promise<void> {
     try {
       for await (const message of session.receive()) {
         // A stale loop from a previous session must not touch current state.
         if (this.session !== session) return
-        if (message.type !== 'serverContent') continue
+        if (!('serverContent' in message)) continue
 
-        this.handleServerContent(message as LiveServerContent)
+        this.handleServerContent(message.serverContent as VertexLiveServerContent)
       }
     } catch {
       // Fall through to the disconnect handling below.
@@ -183,29 +240,44 @@ export class DebateController {
     }
   }
 
-  private handleServerContent(content: LiveServerContent): void {
+  private handleServerContent(content: VertexLiveServerContent): void {
     if (content.interrupted) {
       this.player?.interrupt()
+      this.scheduleInterruptedResumeNudge()
     }
 
     const audioPart = content.modelTurn?.parts?.find((part) =>
       part.inlineData?.mimeType.startsWith('audio/'),
     )
     if (audioPart?.inlineData) {
+      this.onOpponentAudio()
       this.player?.enqueue(base64ToArrayBuffer(audioPart.inlineData.data))
     }
 
     // Transcriptions arrive in fragments and must be concatenated.
     if (content.inputTranscription?.text) {
       this.userBuffer += content.inputTranscription.text
+      this.checkInstantSpeechViolation()
     }
     if (content.outputTranscription?.text) {
       this.aiBuffer += content.outputTranscription.text
     }
 
     if (content.turnComplete) {
+      this.userTurnEndSignaled = false
+      this.userSpokeSinceTurnEnd = false
+      this.clearAiReplyNudge()
+      this.clearInterruptedResumeNudge()
       this.flushTurn()
     }
+  }
+
+  private onOpponentAudio(): void {
+    this.lastAiAudioAt = Date.now()
+    this.opponentReplyDueAt = null
+    this.nudgeCountThisCycle = 0
+    this.clearAiReplyNudge()
+    this.clearInterruptedResumeNudge()
   }
 
   private flushTurn(): void {
@@ -214,8 +286,27 @@ export class DebateController {
     this.userBuffer = ''
     this.aiBuffer = ''
 
+    this.userSpeechSince = null
+    this.longTurnReported = false
+    this.notifyUserTurnSpeech()
+
     if (!userText && !aiText) return
+
+    this.checkInstantSpeechViolation(userText)
+
+    if (userText && !aiText) {
+      this.markOpponentReplyDue()
+      this.scheduleAiReplyNudge()
+    } else if (aiText) {
+      this.opponentReplyDueAt = null
+      this.nudgeCountThisCycle = 0
+    }
+
     this.handlers.onTurnComplete({ userText, aiText })
+  }
+
+  private markOpponentReplyDue(): void {
+    this.opponentReplyDueAt = Date.now()
   }
 
   private async sendAudio(pcm16: Int16Array): Promise<void> {
@@ -224,7 +315,7 @@ export class DebateController {
 
     try {
       await session.sendAudioRealtime({
-        mimeType: 'audio/pcm',
+        mimeType: 'audio/pcm;rate=16000',
         data: pcm16ToBase64(pcm16),
       })
     } catch {
@@ -235,13 +326,219 @@ export class DebateController {
   private startSpeakerPolling(): void {
     this.speakerTimer = window.setInterval(() => {
       if (this.aiPlaying) {
+        this.userTurnEndSignaled = false
         this.setSpeaker('ai')
-      } else if (Date.now() - this.lastVoiceAt < VOICE_HOLD_MS) {
-        this.setSpeaker('user')
       } else {
-        this.setSpeaker('idle')
+        this.overlapReported = false
+        this.overlapSince = null
+        const silentFor = Date.now() - this.lastVoiceAt
+        if (silentFor < VOICE_HOLD_MS) {
+          this.userTurnEndSignaled = false
+          this.setSpeaker('user')
+        } else {
+          this.setSpeaker('idle')
+          this.maybeSignalUserTurnEnd(silentFor)
+          this.maybeRecoverStalledOpponent()
+        }
       }
     }, SPEAKER_POLL_MS)
+  }
+
+  private maybeRecoverStalledOpponent(): void {
+    if (
+      this.stopping ||
+      this.aiPlaying ||
+      this.opponentReplyDueAt === null ||
+      this.session?.isClosed
+    ) {
+      return
+    }
+    const waitingMs = Date.now() - this.opponentReplyDueAt
+    const heardRecently = this.lastAiAudioAt >= this.opponentReplyDueAt
+    if (waitingMs < AI_STALL_MS || heardRecently) {
+      return
+    }
+    this.tryOpponentNudge(
+      'The debate stalled. Speak your next line out loud now — answer what the user just said.',
+    )
+  }
+
+  private maybeSignalUserTurnEnd(silentForMs: number): void {
+    if (
+      this.stopping ||
+      this.userTurnEndSignaled ||
+      silentForMs < USER_END_OF_SPEECH_MS ||
+      !this.userSpokeSinceTurnEnd
+    ) {
+      return
+    }
+    this.userTurnEndSignaled = true
+    this.userSpokeSinceTurnEnd = false
+    this.markOpponentReplyDue()
+    this.session?.sendUserTurnEnd()
+    this.scheduleAiReplyNudge()
+  }
+
+  private scheduleAiReplyNudge(): void {
+    this.clearAiReplyNudge()
+    this.aiReplyNudgeTimer = window.setTimeout(() => {
+      this.aiReplyNudgeTimer = undefined
+      this.tryOpponentNudge(
+        'The user just finished speaking. Reply out loud with a direct response to what they said.',
+      )
+    }, AI_REPLY_NUDGE_MS)
+  }
+
+  private scheduleInterruptedResumeNudge(): void {
+    this.clearInterruptedResumeNudge()
+    this.markOpponentReplyDue()
+    this.interruptedResumeTimer = window.setTimeout(() => {
+      this.interruptedResumeTimer = undefined
+      this.tryOpponentNudge(
+        'You were cut off. Finish your point in one or two spoken sentences, then let the user respond.',
+      )
+    }, INTERRUPTED_RESUME_MS)
+  }
+
+  private tryOpponentNudge(spokenInstruction: string): void {
+    if (this.stopping || this.aiPlaying || this.session?.isClosed) {
+      return
+    }
+    const now = Date.now()
+    if (now - this.lastNudgeAt < MIN_NUDGE_GAP_MS) {
+      return
+    }
+    if (this.nudgeCountThisCycle >= MAX_NUDGES_BEFORE_TURN) {
+      return
+    }
+    this.lastNudgeAt = now
+    this.nudgeCountThisCycle += 1
+    this.session?.sendUserTurnEnd()
+    void this.session?.send(spokenInstruction, true)
+  }
+
+  private clearAiReplyNudge(): void {
+    if (this.aiReplyNudgeTimer !== undefined) {
+      window.clearTimeout(this.aiReplyNudgeTimer)
+      this.aiReplyNudgeTimer = undefined
+    }
+  }
+
+  private clearInterruptedResumeNudge(): void {
+    if (this.interruptedResumeTimer !== undefined) {
+      window.clearTimeout(this.interruptedResumeTimer)
+      this.interruptedResumeTimer = undefined
+    }
+  }
+
+  private notifyUserTurnSpeech(force = false): void {
+    const cb = this.handlers.onUserTurnSpeech
+    if (!cb) {
+      return
+    }
+    if (this.aiPlaying || this.longTurnReported || this.userSpeechSince === null) {
+      cb(null)
+      this.lastTurnSpeechNotifyAt = 0
+      return
+    }
+    const now = Date.now()
+    if (!force && now - this.lastTurnSpeechNotifyAt < 450) {
+      return
+    }
+    this.lastTurnSpeechNotifyAt = now
+    cb({
+      elapsedMs: now - this.userSpeechSince,
+      maxMs: USER_MAX_SPEECH_MS,
+    })
+  }
+
+  private trackLongTurn(_level: number): void {
+    if (this.aiPlaying) {
+      this.userSpeechSince = null
+      this.notifyUserTurnSpeech(true)
+      return
+    }
+
+    const now = Date.now()
+    const silentFor = now - this.lastVoiceAt
+    if (silentFor > TURN_SILENCE_RESET_MS) {
+      this.userSpeechSince = null
+      this.notifyUserTurnSpeech(true)
+      return
+    }
+
+    if (this.longTurnReported) {
+      this.notifyUserTurnSpeech(true)
+      return
+    }
+
+    if (this.userSpeechSince === null) {
+      this.userSpeechSince = this.lastVoiceAt
+    } else if (now - this.userSpeechSince >= USER_MAX_SPEECH_MS) {
+      this.longTurnReported = true
+      this.userSpeechSince = null
+      this.handlers.onLongTurn?.()
+      this.notifyUserTurnSpeech(true)
+      return
+    }
+    this.notifyUserTurnSpeech()
+  }
+
+  private trackInterruption(level: number): void {
+    if (!this.aiPlaying) {
+      this.overlapSince = null
+      return
+    }
+    if (level <= INTERRUPTION_LEVEL_THRESHOLD) {
+      this.overlapSince = null
+      return
+    }
+    if (this.overlapReported) {
+      return
+    }
+    const now = Date.now()
+    if (this.overlapSince === null) {
+      this.overlapSince = now
+      return
+    }
+    if (now - this.overlapSince >= INTERRUPTION_OVERLAP_MS) {
+      this.overlapReported = true
+      this.overlapSince = null
+      this.handlers.onInterruption?.()
+    }
+  }
+
+  private checkInstantSpeechViolation(text?: string): void {
+    if (this.instantSpeechReported || this.stopping) {
+      return
+    }
+    const sample = (text ?? this.userBuffer).trim()
+    if (sample.length < 3) {
+      return
+    }
+    const reason = detectInstantLossSpeech(sample)
+    if (!reason) {
+      return
+    }
+    this.instantSpeechReported = true
+    this.handlers.onInstantSpeechViolation?.(reason, sample)
+  }
+
+  private trackYelling(level: number): void {
+    if (this.yellingReported) {
+      return
+    }
+    if (level >= YELLING_LEVEL_THRESHOLD) {
+      const now = Date.now()
+      if (this.yellingSince === null) {
+        this.yellingSince = now
+      } else if (now - this.yellingSince >= YELLING_SUSTAIN_MS) {
+        this.yellingReported = true
+        this.handlers.onYelling?.()
+      }
+    } else {
+      this.yellingSince = null
+    }
   }
 
   private setSpeaker(speaker: SpeakerState): void {
