@@ -1,0 +1,7 @@
+node_modules
+lib
+*.local
+
+# Mirrored from /shared and /prompts by scripts/sync-shared.mjs.
+src/shared
+src/generated
