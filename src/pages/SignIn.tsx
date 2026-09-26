@@ -17,7 +17,11 @@ export default function SignIn() {
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   const slotRef = useRef<HTMLDivElement | null>(null)
   const verifierRef = useRef<RecaptchaVerifier | null>(null)
+  const widgetIdRef = useRef<number | null>(null)
   const confirmationRef = useRef<ConfirmationResult | null>(null)
+
+  // Bumped to orphan an in-flight send, so a late result cannot move the UI.
+  const attemptRef = useRef(0)
 
   useEffect(() => {
     return () => resetVerifier()
@@ -33,10 +37,30 @@ export default function SignIn() {
    * therefore gets a node grecaptcha has never seen.
    */
   function resetVerifier() {
+    closeChallenge()
     verifierRef.current?.clear()
     verifierRef.current = null
     slotRef.current?.remove()
     slotRef.current = null
+    widgetIdRef.current = null
+  }
+
+  /**
+   * Dismisses an open image challenge. grecaptcha owns that overlay and
+   * appends it to the body, so removing our own node would otherwise strand
+   * it on screen.
+   */
+  function closeChallenge() {
+    const widgetId = widgetIdRef.current
+    const grecaptcha = (window as { grecaptcha?: { reset?: (id?: number) => void } }).grecaptcha
+    if (widgetId === null || typeof grecaptcha?.reset !== 'function') {
+      return
+    }
+    try {
+      grecaptcha.reset(widgetId)
+    } catch {
+      // Already torn down by grecaptcha itself.
+    }
   }
 
   /**
@@ -56,7 +80,18 @@ export default function SignIn() {
       wrapper.appendChild(slot)
       slotRef.current = slot
 
-      verifierRef.current = new RecaptchaVerifier(auth, slot, { size: 'invisible' })
+      const verifier = new RecaptchaVerifier(auth, slot, { size: 'invisible' })
+      verifierRef.current = verifier
+
+      // Remember the widget so a cancelled attempt can close its challenge.
+      verifier.render().then(
+        (id) => {
+          widgetIdRef.current = id
+        },
+        () => {
+          widgetIdRef.current = null
+        },
+      )
     }
     return verifierRef.current
   }
@@ -71,17 +106,39 @@ export default function SignIn() {
       return
     }
 
+    const attempt = ++attemptRef.current
     setBusy(true)
     try {
-      confirmationRef.current = await signInWithPhoneNumber(auth, normalized, getVerifier())
+      const confirmation = await signInWithPhoneNumber(auth, normalized, getVerifier())
+      if (attemptRef.current !== attempt) {
+        return
+      }
+      confirmationRef.current = confirmation
       setStep('code')
     } catch (caught) {
+      if (attemptRef.current !== attempt) {
+        return
+      }
       // The verifier is single-use once it has been consumed by a failed attempt.
       resetVerifier()
       setError(describeAuthError(caught))
     } finally {
-      setBusy(false)
+      if (attemptRef.current === attempt) {
+        setBusy(false)
+      }
     }
+  }
+
+  /**
+   * If the image challenge is dismissed rather than solved, grecaptcha reports
+   * nothing and Firebase ignores the expiry, so the send never settles. Give
+   * the form a way back without a page reload.
+   */
+  function cancelSend() {
+    attemptRef.current += 1
+    resetVerifier()
+    setBusy(false)
+    setError(null)
   }
 
   async function confirmCode(event: React.FormEvent) {
@@ -148,6 +205,16 @@ export default function SignIn() {
                 {busy ? 'Sending code…' : 'Send code'}
               </button>
             </div>
+            {busy && (
+              <div style={{ marginTop: 10 }}>
+                <p style={{ ...s.subheading, fontSize: 12, marginBottom: 10 }}>
+                  If an image challenge appears, solve it to continue.
+                </p>
+                <button type="button" onClick={cancelSend} style={s.buttonSecondary}>
+                  Cancel
+                </button>
+              </div>
+            )}
           </form>
         ) : (
           <form onSubmit={confirmCode}>
@@ -224,7 +291,7 @@ function describeAuthError(error: unknown): string {
     case 'auth/quota-exceeded':
       return 'We have hit our SMS limit for now. Please try again later.'
     case 'auth/captcha-check-failed':
-      return 'The bot check failed. Reload the page and try again.'
+      return 'The bot check did not pass. Try again, and solve the image challenge if one appears.'
     default:
       return (error as { message?: string })?.message ?? 'Something went wrong. Please try again.'
   }
