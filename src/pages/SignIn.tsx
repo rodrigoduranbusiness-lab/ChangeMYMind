@@ -14,15 +14,30 @@ export default function SignIn() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const slotRef = useRef<HTMLDivElement | null>(null)
   const verifierRef = useRef<RecaptchaVerifier | null>(null)
   const confirmationRef = useRef<ConfirmationResult | null>(null)
 
   useEffect(() => {
-    return () => {
-      verifierRef.current?.clear()
-      verifierRef.current = null
-    }
+    return () => resetVerifier()
   }, [])
+
+  /**
+   * Throws away the verifier *and* the DOM node it rendered into.
+   *
+   * Google's grecaptcha keeps an internal registry keyed by element, and
+   * Firebase's `clear()` intentionally leaves the markup in place for an
+   * invisible widget. So reusing the node — even emptied — fails with
+   * "reCAPTCHA has already been rendered in this element". Every verifier
+   * therefore gets a node grecaptcha has never seen.
+   */
+  function resetVerifier() {
+    verifierRef.current?.clear()
+    verifierRef.current = null
+    slotRef.current?.remove()
+    slotRef.current = null
+  }
 
   /**
    * Invisible reCAPTCHA: nothing is shown unless Firebase decides the request
@@ -30,9 +45,18 @@ export default function SignIn() {
    */
   function getVerifier(): RecaptchaVerifier {
     if (!verifierRef.current) {
-      verifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible',
-      })
+      const wrapper = wrapperRef.current
+      if (!wrapper) {
+        throw new Error('The reCAPTCHA container is not mounted yet.')
+      }
+
+      // A throwaway node, appended outside React's control so React never
+      // tries to reconcile whatever grecaptcha injects into it.
+      const slot = document.createElement('div')
+      wrapper.appendChild(slot)
+      slotRef.current = slot
+
+      verifierRef.current = new RecaptchaVerifier(auth, slot, { size: 'invisible' })
     }
     return verifierRef.current
   }
@@ -53,8 +77,7 @@ export default function SignIn() {
       setStep('code')
     } catch (caught) {
       // The verifier is single-use once it has been consumed by a failed attempt.
-      verifierRef.current?.clear()
-      verifierRef.current = null
+      resetVerifier()
       setError(describeAuthError(caught))
     } finally {
       setBusy(false)
@@ -153,6 +176,8 @@ export default function SignIn() {
                   setStep('phone')
                   setCode('')
                   setError(null)
+                  confirmationRef.current = null
+                  resetVerifier()
                 }}
                 style={s.buttonSecondary}
               >
@@ -168,7 +193,7 @@ export default function SignIn() {
           <div style={s.noteBox}>
             Running against the Auth emulator. Use a test number from{' '}
             <code style={{ fontFamily: s.font.mono }}>README.md</code> — for example{' '}
-            <code style={{ fontFamily: s.font.mono }}>+15555550100</code> with code{' '}
+            <code style={{ fontFamily: s.font.mono }}>+12025550100</code> with code{' '}
             <code style={{ fontFamily: s.font.mono }}>123456</code>.
           </div>
         )}
@@ -177,8 +202,8 @@ export default function SignIn() {
           We use your number only to sign you in.
         </p>
 
-        {/* Invisible reCAPTCHA mounts here. */}
-        <div id="recaptcha-container" />
+        {/* Invisible reCAPTCHA slots are appended here. */}
+        <div ref={wrapperRef} />
       </div>
     </div>
   )

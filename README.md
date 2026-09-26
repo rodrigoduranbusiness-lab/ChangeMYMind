@@ -95,8 +95,15 @@ testing**, add:
 
 | Phone number | Code |
 | --- | --- |
-| `+1 555 555 0100` | `123456` |
-| `+1 555 555 0101` | `654321` |
+| `+1 202 555 0100` | `123456` |
+| `+1 202 555 0101` | `654321` |
+
+Use a real, assignable area code (`202` here) rather than the `555` one you see
+in documentation examples. If **SMS region policy** is set to an allowlist, the
+region check runs before test numbers are resolved, and `+1 555 …` cannot be
+mapped to a country — so it is rejected with `auth/operation-not-allowed` even
+though it never sends an SMS. The `555 01xx` exchange is still reserved for
+fictional use, so these numbers belong to nobody.
 
 These sign in without sending an SMS and without a reCAPTCHA challenge, in both
 the emulator and a deployed build. With `VITE_USE_EMULATORS=true` the client
