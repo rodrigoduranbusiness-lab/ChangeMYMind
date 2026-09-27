@@ -11,6 +11,11 @@ export interface TopicConfig {
    * the main lever for keeping the AI even-handed.
    */
   positions: Record<Side, string>
+  /**
+   * Overrides "left-leaning" / "right-leaning" in prompts and results copy.
+   * Used for non-political daily topics (for/against propositions).
+   */
+  sideLabels?: Record<Side, string>
 }
 
 export const TOPICS: TopicConfig[] = [
@@ -59,6 +64,41 @@ export const TOPICS: TopicConfig[] = [
       right: 'AI should be left freer to develop: heavy preemptive rules favor incumbents, chill research, and cede the lead to countries that will not pause for U.S. process.',
     },
   },
+  {
+    id: 'taylor_swift',
+    label: 'Taylor Swift',
+    question: "Is Taylor Swift's impact on the music industry positive or negative?",
+    sideLabels: {
+      left: 'positive',
+      right: 'negative',
+    },
+    positions: {
+      left: "Taylor Swift's impact on the music industry is positive: ambitious songwriting craft, genre range, and cultural reach that expanded what mainstream pop can hold and how artists own their work.",
+      right: "Taylor Swift's impact on the music industry is negative: industrial-scale branding and formula crowd out riskier art and flatten what counts as success.",
+    },
+  },
+  {
+    id: 'ai_humanity',
+    label: 'AI and humanity',
+    question: 'Is AI beneficial to humanity?',
+    sideLabels: {
+      left: 'beneficial',
+      right: 'harmful or not beneficial',
+    },
+    positions: {
+      left: 'AI is beneficial to humanity overall: it amplifies knowledge work, science, and access to tools that improve lives when governed with care.',
+      right: 'AI is harmful or not beneficial overall: concentrated power, misuse, displacement, and systemic risk outweigh the convenience gains.',
+    },
+  },
+]
+
+/** Topics used by the diagnostic quiz (political spectrum). */
+export const DIAGNOSTIC_TOPIC_IDS: TopicId[] = [
+  'immigration',
+  'guns',
+  'abortion',
+  'economy',
+  'ai',
 ]
 
 export const TOPIC_IDS: TopicId[] = TOPICS.map((t) => t.id)
@@ -75,7 +115,12 @@ export function oppositeSide(side: Side): Side {
   return side === 'left' ? 'right' : 'left'
 }
 
-export function sideLabel(side: Side): string {
+export function sideLabel(side: Side, topic?: TopicConfig | TopicId): string {
+  const config =
+    typeof topic === 'string' ? TOPICS.find((t) => t.id === topic) : topic
+  if (config?.sideLabels?.[side]) {
+    return config.sideLabels[side]
+  }
   return side === 'left' ? 'left-leaning' : 'right-leaning'
 }
 

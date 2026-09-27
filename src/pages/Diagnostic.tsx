@@ -65,7 +65,7 @@ export default function Diagnostic() {
       const result = scoreDiagnostic(answers)
       await saveDiagnostic(user.uid, result)
       await refreshDiagnostic()
-      navigate('/briefing', { replace: true })
+      navigate('/today', { replace: true })
     } catch (caught) {
       console.error(caught)
       setError('We could not save your answers. Check your connection and try again.')
@@ -124,7 +124,7 @@ export default function Diagnostic() {
           style={{
             height: 3,
             width: '100%',
-            background: s.color.bg,
+            background: 'transparent',
             overflow: 'hidden',
             marginBottom: 28,
           }}
@@ -173,7 +173,7 @@ export default function Diagnostic() {
                   textAlign: 'left',
                   color: active ? s.color.bg : s.color.text,
                   background: active ? s.color.text : 'transparent',
-                  border: `1px solid ${active ? s.color.text : s.color.border}`,
+                  border: active ? 'none' : `1px solid ${s.color.border}`,
                   cursor: locked || saving ? 'default' : 'pointer',
                 }}
               >
@@ -182,7 +182,7 @@ export default function Diagnostic() {
                     flex: '0 0 auto',
                     width: 12,
                     height: 12,
-                    border: `1px solid ${active ? s.color.bg : s.color.borderStrong}`,
+                    border: active ? 'none' : `1px solid ${s.color.borderStrong}`,
                     background: active ? s.color.bg : 'transparent',
                   }}
                 />

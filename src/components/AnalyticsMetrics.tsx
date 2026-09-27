@@ -238,7 +238,7 @@ export default function AnalyticsMetrics({ metrics, lossReason }: Props) {
                 style={{
                   width: '100%',
                   height: 72,
-                  background: 'rgba(255,255,255,0.06)',
+                  background: 'rgba(17,17,17,0.06)',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'flex-end',

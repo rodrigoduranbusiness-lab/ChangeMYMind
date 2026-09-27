@@ -1,0 +1,38 @@
+# Change My Mind — https://changemymind.tech/
+User-agent: *
+Allow: /
+Disallow: /today
+Disallow: /stance
+Disallow: /mode
+Disallow: /text
+Disallow: /debate
+Disallow: /diagnostic
+Disallow: /briefing
+Disallow: /results
+Disallow: /education/teacher
+Disallow: /education/student
+
+User-agent: Googlebot
+Allow: /
+Disallow: /today
+Disallow: /stance
+Disallow: /mode
+Disallow: /text
+Disallow: /debate
+Disallow: /diagnostic
+Disallow: /briefing
+Disallow: /results
+
+User-agent: Bingbot
+Allow: /
+Disallow: /today
+Disallow: /stance
+Disallow: /mode
+Disallow: /text
+Disallow: /debate
+Disallow: /diagnostic
+Disallow: /briefing
+Disallow: /results
+
+Sitemap: https://changemymind.tech/sitemap.xml
+Host: https://changemymind.tech

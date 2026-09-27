@@ -1,4 +1,4 @@
-import { TOPIC_IDS } from './topics'
+import { DIAGNOSTIC_TOPIC_IDS, TOPIC_IDS } from './topics'
 import type {
   DiagnosticResult,
   JudgeScores,
@@ -15,11 +15,11 @@ export const DEBATE_DURATION_MS = 3 * 60 * 1000
 /** @deprecated Persuasion no longer ends debates; kept for analytics / harness. */
 export const WIN_PERSUASION_THRESHOLD = 80
 
-/** Session judge respect axis (0–100). */
-export const WIN_RESPECT_THRESHOLD = 70
+/** Session judge respect axis (0–100). Kept easy for MVP. */
+export const WIN_RESPECT_THRESHOLD = 50
 
-/** Session judge argument-quality axis (0–100). */
-export const WIN_QUALITY_THRESHOLD = 70
+/** Session judge argument-quality axis (0–100). Kept easy for MVP. */
+export const WIN_QUALITY_THRESHOLD = 50
 
 /** civility_tone at or below this counts as an incivility strike (instant loss). */
 export const INCIVILITY_SCORE_THRESHOLD = 2
@@ -49,7 +49,7 @@ export function clamp01(n: number): number {
  * someone who holds the same views and does not.
  */
 export function diagnosticComponent(diagnostic: DiagnosticResult): number {
-  const extremities = TOPIC_IDS.map((t) => diagnostic.topicExtremity[t] ?? 0)
+  const extremities = DIAGNOSTIC_TOPIC_IDS.map((t) => diagnostic.topicExtremity[t] ?? 0)
   const avgExtremity = extremities.reduce((a, b) => a + b, 0) / (extremities.length || 1)
   const opennessAdjustment = (0.5 - (diagnostic.openness ?? 0.5)) * 0.4
   return clamp01(avgExtremity + opennessAdjustment)

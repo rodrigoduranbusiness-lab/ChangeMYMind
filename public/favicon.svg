@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#0d1117" />
-  <circle cx="16" cy="16" r="10.5" fill="none" stroke="#2a313c" stroke-width="1.5" />
-  <circle cx="16" cy="16" r="5.5" fill="none" stroke="#2a313c" stroke-width="1.5" stroke-dasharray="2 3" />
-  <path d="M5.5 16h21" stroke="#2a313c" stroke-width="1.5" />
-  <circle cx="16" cy="16" r="2" fill="#e0b050" />
+  <rect width="32" height="32" fill="#000000"/>
+  <polygon points="16,2 30,20 2,20" fill="#ffffff"/>
+  <rect x="17" y="14" width="13" height="14" fill="#c8c8c8"/>
+  <polygon points="4,16 15,16 17,22 12,30 1,30 0,22" fill="#8f8f8f"/>
+  <circle cx="14" cy="18" r="3.4" fill="#000000"/>
+  <circle cx="14" cy="18" r="1.6" fill="#ffffff"/>
 </svg>

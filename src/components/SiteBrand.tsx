@@ -51,14 +51,14 @@ export function SiteShareMark({
   color = s.color.text,
   style,
 }: ShareMarkProps) {
-  // Bound to viewport so ChangeMyMind.tech never clips horizontally.
+  // Bound to viewport so ChangeMyMind.tech never clips (incl. ".tech").
   const fontSize =
     size === 'debate'
-      ? 'min(72px, 11vw, calc((100vw - 28px) / 9.2))'
+      ? 'min(28px, 5vw, calc((100vw - 32px) / 15.2))'
       : size === 'share'
-        ? 'clamp(17px, 4.6vw, calc((100vw - 28px) / 13.5))'
+        ? 'clamp(17px, 4.6vw, calc((100vw - 28px) / 15.2))'
         : size === 'hero'
-          ? 'min(42px, 6.5vw, calc((100vw - 40px) / 12))'
+          ? 'min(42px, 6.5vw, calc((100vw - 40px) / 15.2))'
           : 'min(28px, 4.5vw, calc((100vw - 40px) / 14))'
 
   const bleedShell: CSSProperties =
@@ -133,5 +133,27 @@ export function SiteBrandFooter({
         </p>
       )}
     </footer>
+  )
+}
+
+/** Fixed top brand for onboarding / today flows. */
+export function SiteMasthead({ fixed = false }: { fixed?: boolean }) {
+  return (
+    <div
+      style={{
+        position: fixed ? 'fixed' : 'relative',
+        top: fixed ? `max(12px, env(safe-area-inset-top))` : undefined,
+        left: 0,
+        right: 0,
+        zIndex: 20,
+        display: 'flex',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+        paddingLeft: `max(16px, env(safe-area-inset-left))`,
+        paddingRight: `max(16px, env(safe-area-inset-right))`,
+      }}
+    >
+      <SiteBrand style={{ pointerEvents: 'auto' }} />
+    </div>
   )
 }

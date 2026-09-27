@@ -21,6 +21,10 @@ body,
 #root {
   min-height: 100%;
   margin: 0;
+  background: #000000;
+  background-color: #000000;
+  color: #ffffff;
+  color-scheme: dark only;
 }
 
 body {
@@ -32,7 +36,7 @@ body {
 }
 
 /* Permanent film grain — lives in CSS so it covers every route even before
- * React mounts. Finer grit (higher baseFrequency), light screen on black. */
+ * React mounts. Denser grit (higher baseFrequency), stronger screen on black. */
 body::before {
   content: '';
   position: fixed;
@@ -40,8 +44,8 @@ body::before {
   z-index: 9998;
   pointer-events: none;
   mix-blend-mode: screen;
-  opacity: 0.2;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.35' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='128' height='128' filter='url(%23g)'/%3E%3C/svg%3E");
+  opacity: 0.36;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.55' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E");
   background-repeat: repeat;
 }
 
@@ -170,6 +174,148 @@ button {
   to {
     transform: translateY(60vh);
     opacity: 0;
+  }
+}
+
+/* Huey avatar — soft overlapping geometric drift (legacy names kept as aliases). */
+@keyframes huey-drift-a {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+  33% {
+    transform: translate(6%, -4%) rotate(8deg) scale(1.04);
+  }
+  66% {
+    transform: translate(-4%, 5%) rotate(-6deg) scale(0.97);
+  }
+}
+
+@keyframes huey-drift-b {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+  50% {
+    transform: translate(-5%, 4%) rotate(-12deg) scale(1.05);
+  }
+}
+
+@keyframes huey-drift-c {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.75;
+  }
+  50% {
+    transform: translate(4%, -3%) scale(1.06);
+    opacity: 0.95;
+  }
+}
+
+@keyframes huey-spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Rigid Huey motion — shake, jab moves, constant spin (not soft drift). */
+@keyframes huey-shake {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  10% {
+    transform: translate(6%, -4%) rotate(8deg);
+  }
+  20% {
+    transform: translate(-5%, 5%) rotate(-10deg);
+  }
+  30% {
+    transform: translate(7%, 2%) rotate(6deg);
+  }
+  40% {
+    transform: translate(-4%, -6%) rotate(-8deg);
+  }
+  50% {
+    transform: translate(5%, 5%) rotate(10deg);
+  }
+  60% {
+    transform: translate(-7%, -2%) rotate(-6deg);
+  }
+  70% {
+    transform: translate(4%, 6%) rotate(9deg);
+  }
+  80% {
+    transform: translate(-6%, 3%) rotate(-7deg);
+  }
+  90% {
+    transform: translate(3%, -5%) rotate(5deg);
+  }
+}
+
+@keyframes huey-jab {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  15% {
+    transform: translate(12%, -10%) rotate(18deg);
+  }
+  30% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  45% {
+    transform: translate(-11%, 9%) rotate(-16deg);
+  }
+  60% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  75% {
+    transform: translate(8%, 11%) rotate(12deg);
+  }
+  90% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+}
+
+@keyframes huey-tick {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate(8%, 0) rotate(90deg);
+  }
+  50% {
+    transform: translate(8%, 8%) rotate(180deg);
+  }
+  75% {
+    transform: translate(0, 8%) rotate(270deg);
+  }
+}
+
+@keyframes huey-spin-rigid {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes huey-color-shift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translate(-3%, 4%) scale(1.15);
+    opacity: 1;
   }
 }
 

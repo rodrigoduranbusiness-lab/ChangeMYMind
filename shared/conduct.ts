@@ -11,6 +11,9 @@ export const CONDUCT_EVENTS_NEEDS_WORK = 6
 /** Max continuous user speech per turn (ms) — must leave room for a response. */
 export const USER_MAX_SPEECH_MS = 30_000
 
+/** Max continuous AI speech per turn (ms) — hard client cut so Huey cannot monologue. */
+export const AI_MAX_SPEECH_MS = 20_000
+
 /** Mic level while AI is speaking — must exceed this to start an overlap clock. */
 export const INTERRUPTION_LEVEL_THRESHOLD = 0.12
 

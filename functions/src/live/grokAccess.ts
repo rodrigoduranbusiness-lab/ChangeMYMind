@@ -2,6 +2,7 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import type { CallableRequest } from 'firebase-functions/v2/https'
 
 import { GROK_API_BASE, GROK_VOICE_MODEL, requireXaiApiKey } from '../config'
+import { loadHueyDailyContext } from '../huey'
 import type { LiveAccessResponse } from './types'
 
 const EPHEMERAL_SECONDS = Number(process.env.GROK_EPHEMERAL_SECONDS ?? 3600)
@@ -57,6 +58,7 @@ export async function mintGrokLiveAccess(request: CallableRequest): Promise<Live
     : Date.now() + EPHEMERAL_SECONDS * 1000
 
   const wsUrl = `wss://api.x.ai/v1/realtime?model=${encodeURIComponent(GROK_VOICE_MODEL)}`
+  const huey = await loadHueyDailyContext()
 
   return {
     provider: 'grok',
@@ -65,5 +67,6 @@ export async function mintGrokLiveAccess(request: CallableRequest): Promise<Live
     wsUrl,
     model: GROK_VOICE_MODEL,
     location: 'us-east-1',
+    hueyDailyContext: huey.context,
   }
 }

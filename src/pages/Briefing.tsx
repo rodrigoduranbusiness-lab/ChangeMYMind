@@ -82,7 +82,7 @@ export default function Briefing() {
 
   const sideRevealLine = useMemo(() => {
     if (!topic || !leanIsKnown) return ''
-    return `The AI will argue the ${sideLabel(debaterSide)}-leaning side:\n\n${topic.positions[debaterSide]}`
+    return `Huey will argue the ${sideLabel(debaterSide)}-leaning side:\n\n${topic.positions[debaterSide]}`
   }, [topic, leanIsKnown, debaterSide])
 
   function schedule(ms: number, next: () => void) {
@@ -253,7 +253,7 @@ export default function Briefing() {
 
         {stage === 'rule4' && (
           <AppearingLine
-            text="4. Wait until the AI finishes speaking before you answer. Talking over it counts as an interruption."
+            text="4. Wait until Huey finishes speaking before you answer. Talking over it counts as an interruption."
             holdMs={900}
             onDone={() => setStage('rule5')}
           />
@@ -277,7 +277,7 @@ export default function Briefing() {
 
         {stage === 'balanced' && (
           <AppearingLine
-            text="Your answers came out balanced on every topic, so we picked one for you. The AI will take a side and argue it hard — you will hear which one in its opening."
+            text="Your answers came out balanced on every topic, so we picked one for you. Huey will take a side and argue it hard — you will hear which one in the opening."
             holdMs={1000}
             onDone={() => setStage('topicLabel')}
           />

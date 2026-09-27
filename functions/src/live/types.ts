@@ -8,4 +8,6 @@ export interface LiveAccessResponse {
   model: string
   /** Vertex region or Grok cluster hint for logging. */
   location: string
+  /** Today's Huey winner context for the opponent prompt (optional). */
+  hueyDailyContext?: string
 }

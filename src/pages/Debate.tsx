@@ -10,10 +10,10 @@ import { DEBATE_DURATION_MS } from '@shared/scoring'
 import { normalizeSessionStatus } from '@shared/rules'
 import { getTopic } from '@shared/topics'
 import type { SessionOutcomeReason, SessionStatus, TranscriptEntry } from '@shared/types'
-import { useAuth } from '../auth/context'
 import { DebateChrome } from '../components/DebateChrome'
 import { SiteShareMark } from '../components/SiteBrand'
 import SpeakingIndicator from '../components/SpeakingIndicator'
+import VoiceRules, { hasSeenVoiceRules } from '../components/VoiceRules'
 import {
   abandonSessionOnUnload,
   cacheIdToken,
@@ -26,6 +26,7 @@ import {
   submitTurn,
   syncTranscript,
 } from '../lib/api'
+import { getDebateChoice } from '../lib/dailyChoice'
 import { DebateController } from '../lib/liveDebate'
 import type { SpeakerState } from '../lib/liveDebate'
 import * as s from '../theme'
@@ -58,10 +59,12 @@ const CONFIRM_MS = 120
 const WHITEOUT_MS = 180
 
 export default function Debate() {
-  const { diagnostic } = useAuth()
   const navigate = useNavigate()
+  const dailyChoice = getDebateChoice()
 
   const [phase, setPhase] = useState<Phase>('intro')
+  /** First visit auto-opens rules; later visits only via the Rules button. */
+  const [showRules, setShowRules] = useState(() => !hasSeenVoiceRules())
   const [speaker, setSpeaker] = useState<SpeakerState>('idle')
   const [remainingMs, setRemainingMs] = useState(DEBATE_DURATION_MS)
   const [outcome, setOutcome] = useState<Outcome | null>(null)
@@ -109,8 +112,16 @@ export default function Debate() {
   }, [userTurnSpeech])
   const beginTimers = useRef<ReturnType<typeof setTimeout>[]>([])
 
-  const topicId = diagnostic?.assignedTopic
+  // Daily path only — stance must be picked on /today → /stance (no diagnostic gate).
+  const topicId = dailyChoice?.topicId
   const topic = topicId ? getTopic(topicId) : null
+  const explicitSide = dailyChoice?.userSide
+
+  useEffect(() => {
+    if (!dailyChoice) {
+      navigate('/today', { replace: true })
+    }
+  }, [dailyChoice, navigate])
 
   useEffect(() => {
     return () => {
@@ -460,7 +471,16 @@ export default function Debate() {
     try {
       await cacheIdToken()
 
-      const session = await startSession()
+      if (!topicId || !explicitSide) {
+        navigate('/today', { replace: true })
+        return
+      }
+
+      const session = await startSession({
+        topicId,
+        userSide: explicitSide,
+        modality: 'voice',
+      })
       sessionIdRef.current = session.sessionId
       setSessionId(session.sessionId)
       deadlineRef.current = session.deadline
@@ -469,6 +489,7 @@ export default function Debate() {
       const controller = new DebateController({
         topic: session.topic,
         debaterSide: session.debaterSide,
+        hueyDailyContext: session.hueyDailyContext,
         handlers: {
           onSpeakerChange: setSpeaker,
           onTurnComplete: handleTurn,
@@ -523,15 +544,17 @@ export default function Debate() {
     return (
       <div style={s.page}>
         <div style={s.card}>
-          <h1 style={s.heading}>Take the questions first</h1>
+          <h1 style={s.heading}>Start with today’s topic</h1>
           <p style={{ ...s.subheading, marginTop: 12 }}>
-            We need your answers before we know which debate to give you.
+            Pick today’s question and your stance before the voice debate.
           </p>
-          <div style={{ marginTop: 20 }}>
-            <button type="button" onClick={() => navigate('/diagnostic')} style={s.buttonPrimary}>
-              Start the questions
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/today')}
+            style={{ ...s.buttonPrimary, marginTop: 24 }}
+          >
+            Today’s debate
+          </button>
         </div>
       </div>
     )
@@ -572,7 +595,7 @@ export default function Debate() {
               position: 'fixed',
               inset: 0,
               zIndex: 100,
-              background: '#ffffff',
+              background: '#000000',
               opacity: whiteOpaque ? 1 : 0,
               transition: `opacity ${WHITEOUT_MS}ms ease`,
               pointerEvents: 'none',
@@ -613,7 +636,7 @@ export default function Debate() {
               position: 'fixed',
               inset: 0,
               zIndex: 100,
-              background: '#ffffff',
+              background: '#000000',
               opacity: whiteOpaque ? 1 : 0,
               transition: `opacity ${WHITEOUT_MS}ms ease`,
               pointerEvents: 'none',
@@ -621,6 +644,14 @@ export default function Debate() {
           />
         )}
       </div>
+      </DebateChrome>
+    )
+  }
+
+  if ((phase === 'intro' || phase === 'connecting') && showRules) {
+    return (
+      <DebateChrome>
+        <VoiceRules onDone={() => setShowRules(false)} />
       </DebateChrome>
     )
   }
@@ -643,21 +674,22 @@ export default function Debate() {
         >
           {topic && (
             <>
+              <div style={{ marginBottom: 16 }}>
+                <SiteShareMark size="debate" color={s.color.text} />
+              </div>
               <p
                 style={{
                   ...s.subheading,
-                  marginBottom: 14,
-                  color: s.color.textMuted,
-                  fontSize: 22,
-                  lineHeight: 1.4,
+                  marginBottom: 20,
+                  color: s.color.text,
+                  fontSize: 26,
+                  lineHeight: 1.35,
                   maxWidth: '100%',
+                  textAlign: 'center',
                 }}
               >
                 {topic.question}
               </p>
-              <div style={{ marginBottom: 20 }}>
-                <SiteShareMark size="hero" color={s.color.text} />
-              </div>
             </>
           )}
           <button
@@ -676,6 +708,20 @@ export default function Debate() {
                 ? 'Allowed'
                 : 'Allow mic access and start'}
           </button>
+          <button
+            type="button"
+            onClick={() => setShowRules(true)}
+            disabled={beginConfirmed || phase === 'connecting'}
+            style={{
+              ...s.disabled(s.buttonSecondary, beginConfirmed || phase === 'connecting'),
+              marginTop: 12,
+              minHeight: 48,
+              fontSize: 16,
+              width: '100%',
+            }}
+          >
+            Rules
+          </button>
           <p style={{ ...s.subheading, fontSize: 13, marginTop: 14, color: s.color.textFaint }}>
             We do not stand for or endorse any of the opinions presented.
           </p>
@@ -688,7 +734,7 @@ export default function Debate() {
               position: 'fixed',
               inset: 0,
               zIndex: 100,
-              background: '#ffffff',
+              background: '#000000',
               opacity: whiteOpaque ? 1 : 0,
               transition: `opacity ${WHITEOUT_MS}ms ease`,
               pointerEvents: 'none',
@@ -726,12 +772,20 @@ export default function Debate() {
           flex: '0 0 auto',
         }}
       >
+        <div
+          style={{
+            marginBottom: 12,
+            opacity: paused ? 0.35 : 1,
+          }}
+        >
+          <SiteShareMark size="debate" color={s.color.text} />
+        </div>
         <p
           style={{
-            margin: 0,
+            margin: '0 0 16px',
             padding: '0 12px',
             fontFamily: s.font.serif,
-            fontSize: 22,
+            fontSize: 26,
             lineHeight: 1.35,
             color: s.color.text,
             maxWidth: '100%',
@@ -741,15 +795,6 @@ export default function Debate() {
         >
           {topic?.question}
         </p>
-        <div
-          style={{
-            marginTop: 12,
-            marginBottom: 16,
-            opacity: paused ? 0.35 : 1,
-          }}
-        >
-          <SiteShareMark size="debate" color={s.color.text} />
-        </div>
         <div
           style={{
             fontFamily: s.font.mono,
@@ -813,6 +858,17 @@ export default function Debate() {
         }}
       >
         <SpeakingIndicator speaker={paused ? 'idle' : speaker} />
+        <p
+          style={{
+            margin: 0,
+            fontFamily: s.font.serif,
+            fontSize: 15,
+            color: s.color.textMuted,
+            opacity: paused ? 0.35 : 1,
+          }}
+        >
+          Huey
+        </p>
         <div
           style={{
             position: 'relative',
@@ -839,7 +895,7 @@ export default function Debate() {
               transition: 'opacity 400ms ease',
             }}
           >
-            Wait for the AI to finish before you answer.
+            Wait for Huey to finish before you answer.
           </p>
           <div
             style={{
@@ -920,7 +976,7 @@ export default function Debate() {
             position: 'fixed',
             inset: 0,
             zIndex: 100,
-            background: '#ffffff',
+            background: '#000000',
             opacity: whiteOpaque ? 1 : 0,
             transition: `opacity ${WHITEOUT_MS}ms ease`,
             pointerEvents: 'none',

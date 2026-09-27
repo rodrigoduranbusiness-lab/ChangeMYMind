@@ -48,7 +48,13 @@ export class GrokLiveSession {
         session: {
           voice: options.voiceName ?? 'eve',
           instructions: options.systemInstruction,
-          turn_detection: { type: 'server_vad' },
+          turn_detection: {
+            type: 'server_vad',
+            // Faster handoff so Huey does not talk over / ignore the user.
+            threshold: 0.45,
+            silence_duration_ms: 650,
+            prefix_padding_ms: 250,
+          },
           audio: {
             input: { format: { type: 'audio/pcm', rate: 16000 } },
             output: { format: { type: 'audio/pcm', rate: 24000 } },
@@ -92,6 +98,16 @@ export class GrokLiveSession {
     if (this.isClosed) return
     this.ws.send(JSON.stringify({ type: 'input_audio_buffer.commit' }))
     this.ws.send(JSON.stringify({ type: 'response.create' }))
+  }
+
+  /** Stop the model mid-response (barge-in / speech cap). */
+  cancelResponse(): void {
+    if (this.isClosed) return
+    try {
+      this.ws.send(JSON.stringify({ type: 'response.cancel' }))
+    } catch {
+      /* ignore */
+    }
   }
 
   async *receive(): AsyncGenerator<Record<string, unknown>> {
@@ -175,7 +191,10 @@ export class GrokLiveSession {
       }
 
       if (type === 'input_audio_buffer.speech_started') {
-        this.pushServerContent({ interrupted: false })
+        // User barge-in: stop local playback + cancel model so we don't ignore them.
+        this.pushServerContent({ interrupted: true })
+        this.cancelResponse()
+        return
       }
     } catch {
       // Ignore malformed frames.
@@ -192,11 +211,32 @@ export class GrokLiveSession {
 function openSocket(url: string, protocols: string[]): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url, protocols)
-    ws.addEventListener('open', () => resolve(ws), { once: true })
+    let settled = false
+    const fail = (message: string) => {
+      if (settled) return
+      settled = true
+      reject(new Error(message))
+    }
     ws.addEventListener(
-      'error',
-      () => reject(new Error('Grok Live WebSocket failed to open.')),
+      'open',
+      () => {
+        if (settled) return
+        settled = true
+        resolve(ws)
+      },
       { once: true },
     )
+    ws.addEventListener(
+      'close',
+      (event) => {
+        fail(
+          `Grok Live WebSocket failed to open (close ${event.code}${event.reason ? `: ${event.reason}` : ''}).`,
+        )
+      },
+      { once: true },
+    )
+    ws.addEventListener('error', () => fail('Grok Live WebSocket failed to open.'), {
+      once: true,
+    })
   })
 }

@@ -1,5 +1,6 @@
 import { AI_PROVIDER } from '../config'
 import { runSessionJudgeGrok, runTakeawaysGrok } from './grokJudge'
+import { runTextDebaterReply } from './textDebater'
 import { formatTranscript } from './transcript'
 import {
   runSessionJudgeVertex,
@@ -8,7 +9,7 @@ import {
   type TakeawaysParams,
 } from './vertexJudge'
 
-export { formatTranscript, type SessionJudgeParams, type TakeawaysParams }
+export { formatTranscript, type SessionJudgeParams, type TakeawaysParams, runTextDebaterReply }
 
 export async function runSessionJudge(params: SessionJudgeParams) {
   if (AI_PROVIDER === 'grok') {

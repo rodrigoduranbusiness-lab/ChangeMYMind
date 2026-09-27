@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>Change My Mind</title>
+    <script src="assets/gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "CMU Serif";
+        font-style: normal;
+        font-weight: 500;
+        src: url("assets/fonts/cmu-serif-500-roman.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "CMU Serif";
+        font-style: normal;
+        font-weight: 700;
+        src: url("assets/fonts/cmu-serif-700-roman.woff2") format("woff2");
+      }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      html, body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #ffffff;
+        color: #000000;
+      }
+
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #ffffff;
+        color: #000000;
+        font-family: "CMU Serif", serif;
+        font-weight: 500;
+      }
+
+      .clip {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 88px 120px;
+      }
+
+      .reveal, .screen, .blob { opacity: 0; }
+
+      .poster {
+        font-size: 132px;
+        line-height: 0.98;
+        font-weight: 500;
+        letter-spacing: 0;
+        max-width: 1500px;
+        text-align: center;
+      }
+
+      .poster.mid { font-size: 84px; line-height: 1.08; }
+
+      .quiet { color: #3a3a3a; }
+
+      .split {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 72px;
+      }
+
+      .say {
+        width: 620px;
+        text-align: left;
+        flex-shrink: 0;
+      }
+
+      .say p { font-size: 64px; line-height: 1.05; }
+      .say .note { margin-top: 22px; font-size: 32px; color: #3a3a3a; }
+
+      .device {
+        position: relative;
+        width: 560px;
+        height: 640px;
+        background: #000000;
+        color: #ffffff;
+        flex-shrink: 0;
+        overflow: hidden;
+      }
+
+      .screen {
+        position: absolute;
+        inset: 0;
+        padding: 44px 40px 40px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .brand { font-size: 22px; margin-bottom: 36px; }
+      .meta {
+        display: flex;
+        justify-content: space-between;
+        color: #b0b0b0;
+        font-size: 16px;
+        margin-bottom: 28px;
+      }
+      .q { font-size: 32px; line-height: 1.25; font-weight: 500; }
+      .hint { margin-top: 14px; color: #b0b0b0; font-size: 18px; line-height: 1.4; }
+
+      .btn {
+        margin-top: 28px;
+        width: 100%;
+        padding: 16px 18px;
+        text-align: center;
+        font-size: 22px;
+        background: #ffffff;
+        color: #000000;
+        border: none;
+      }
+      .btn.ghost {
+        background: transparent;
+        color: #ffffff;
+        border: 1px solid #4a4a4a;
+      }
+      .btn.row { margin-top: 0; }
+
+      .pair { display: flex; gap: 12px; margin-top: 28px; }
+      .pair .btn { flex: 1; margin-top: 0; }
+
+      .chips { display: flex; gap: 10px; margin-top: auto; }
+      .chip {
+        border: 1px solid #2a2a2a;
+        color: #b0b0b0;
+        font-size: 16px;
+        padding: 8px 12px;
+      }
+
+      .clock {
+        margin-top: 48px;
+        font-size: 88px;
+        text-align: center;
+        font-weight: 500;
+      }
+
+      .bars { margin-top: 36px; }
+      .bars p { font-size: 18px; margin-bottom: 8px; color: #b0b0b0; }
+      .track { height: 6px; background: #2a2a2a; margin-bottom: 18px; overflow: hidden; }
+      .fill { height: 100%; width: 100%; background: #ffffff; transform-origin: left center; }
+
+      .huey {
+        position: relative;
+        width: 220px;
+        height: 220px;
+        margin: 28px auto 0;
+      }
+      .blob { position: absolute; border-radius: 50%; background: #ffffff; }
+      .b1 { left: 12px; top: 28px; width: 96px; height: 96px; }
+      .b2 { left: 88px; top: 12px; width: 78px; height: 78px; background: #cfcfcf; }
+      .b3 { left: 52px; top: 86px; width: 110px; height: 110px; background: #e8e8e8; }
+      .b4 { left: 130px; top: 100px; width: 64px; height: 64px; background: #9a9a9a; }
+      .b5 { left: 28px; top: 130px; width: 52px; height: 52px; background: #bdbdbd; }
+
+      .spec { width: 220px; height: 220px; margin: 20px auto 0; display: block; }
+
+      .stack { width: 1100px; }
+      .stack p { font-size: 56px; line-height: 1.2; margin-top: 8px; }
+      .stack .note { font-size: 32px; color: #3a3a3a; }
+
+      .mark {
+        justify-content: flex-start;
+        align-items: flex-start;
+        padding: 40px 48px;
+        z-index: 6;
+      }
+      .mark p { font-size: 28px; }
+
+      #grain {
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        pointer-events: none;
+        mix-blend-mode: multiply;
+        opacity: 0.18;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.35' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='128' height='128' filter='url(%23g)'/%3E%3C/svg%3E");
+        background-repeat: repeat;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="common-ground" data-start="0" data-width="1920" data-height="1080" data-duration="111">
+
+      <section class="clip" id="o1" data-start="0" data-duration="3.3" data-track-index="1">
+        <p class="poster reveal" id="yell">We yell.</p>
+      </section>
+      <section class="clip" id="o2" data-start="3.3" data-duration="3.3" data-track-index="1">
+        <p class="poster reveal" id="hate">We hate.</p>
+      </section>
+      <section class="clip" id="o3" data-start="6.6" data-duration="3.4" data-track-index="1">
+        <p class="poster mid reveal" id="better">We assume we're better.</p>
+      </section>
+
+      <section class="clip" id="problem" data-start="10" data-duration="7.18" data-track-index="1">
+        <div>
+          <p class="poster mid reveal" id="have">We have a problem.</p>
+          <p class="poster mid reveal quiet" id="lost" style="font-size: 48px; margin-top: 28px">We've lost the most important part of a functional society.</p>
+          <p class="poster reveal" id="civil" style="margin-top: 18px">Civil debate.</p>
+        </div>
+      </section>
+
+      <section class="clip" id="sides" data-start="17.18" data-duration="7.67" data-track-index="1">
+        <div>
+          <p class="poster mid reveal" id="both">On both sides.</p>
+          <p class="poster mid reveal" id="trio" style="margin-top: 18px">We yell. We hate. We're better.</p>
+          <p class="poster reveal" id="try" style="margin-top: 28px">Try to change my mind.</p>
+        </div>
+      </section>
+
+      <section class="clip" id="listen" data-start="24.85" data-duration="4.69" data-track-index="1">
+        <div>
+          <p class="poster mid reveal" id="noyell">We don't want people to yell.</p>
+          <p class="poster mid reveal quiet" id="share" style="margin-top: 20px">We want them to share ideas, and actually listen.</p>
+        </div>
+      </section>
+
+      <section class="clip" id="world" data-start="29.54" data-duration="6.58" data-track-index="1">
+        <div>
+          <p class="poster mid reveal" id="every">One new question a day.</p>
+          <p class="poster mid reveal quiet" id="pol" style="margin-top: 22px">Politics to pop culture.</p>
+        </div>
+      </section>
+
+      <section class="clip" id="product" data-start="36.12" data-duration="19.75" data-track-index="1">
+        <div class="split">
+          <div class="say">
+            <p class="reveal" id="say-q">Today's question.</p>
+            <p class="note reveal" id="say-tap">Tap a side. Huey takes the other.</p>
+            <p class="note reveal" id="say-mode">Out loud, or typed.</p>
+            <p class="note reveal" id="say-wait">A person, or Huey.</p>
+          </div>
+          <div class="device reveal" id="device">
+            <div class="screen" id="sc-today">
+              <p class="brand">Change My Mind</p>
+              <div class="meta"><span>Today is Sunday</span><span>0 solvers today</span></div>
+              <p class="q">Is Taylor Swift's impact on music positive or negative?</p>
+              <div class="btn">Debate</div>
+              <div class="chips"><span class="chip">Streak 4</span><span class="chip">Wins 2</span></div>
+            </div>
+            <div class="screen" id="sc-stance">
+              <p class="brand">Change My Mind</p>
+              <p class="q">Is Taylor Swift's impact on music positive or negative?</p>
+              <p class="hint">Pick the side you will argue. Huey takes the other side.</p>
+              <div class="pair">
+                <div class="btn" id="pick-pos">Positive</div>
+                <div class="btn ghost" id="pick-neg">Negative</div>
+              </div>
+            </div>
+            <div class="screen" id="sc-mode">
+              <p class="brand">Change My Mind</p>
+              <p class="q">Voice or text</p>
+              <p class="hint">Text matches you with the other side. If no one is waiting, you debate Huey.</p>
+              <div class="btn" id="voice-btn" style="margin-top: 32px">Voice</div>
+              <div class="btn ghost" style="margin-top: 12px">Text</div>
+              <p class="clock">3:00</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="clip" id="judge" data-start="55.87" data-duration="12.93" data-track-index="1">
+        <div class="split">
+          <div class="say">
+            <p class="reveal" id="j-title">An AI judge.</p>
+            <p class="note reveal" id="j-not">Not which side is right.</p>
+            <p class="note reveal" id="j-lose">Disrespect loses.</p>
+            <p class="note reveal" id="j-back">Come back tomorrow.</p>
+          </div>
+          <div class="device reveal" id="results">
+            <div class="screen" style="opacity: 1">
+              <p class="brand">Change My Mind</p>
+              <p class="q">You won</p>
+              <div class="bars">
+                <p>Respect</p>
+                <div class="track"><div class="fill" id="respect"></div></div>
+                <p>Argument quality</p>
+                <div class="track"><div class="fill" id="quality"></div></div>
+              </div>
+              <svg class="spec" viewBox="0 0 220 220">
+                <path d="M110 110 L110 18 A92 92 0 0 0 110 202 Z" fill="#7aa2d4" opacity="0.35"></path>
+                <path d="M110 110 L110 18 A92 92 0 0 1 110 202 Z" fill="#d48a7a" opacity="0.35"></path>
+                <circle cx="110" cy="110" r="92" fill="none" stroke="#4a4a4a"></circle>
+                <circle cx="110" cy="110" r="58" fill="none" stroke="#2a2a2a" stroke-dasharray="3 5"></circle>
+                <line x1="110" y1="18" x2="110" y2="202" stroke="#4a4a4a"></line>
+                <rect id="marker" x="96" y="96" width="12" height="12" fill="#ffffff"></rect>
+              </svg>
+              <p class="hint" style="text-align: center">Where you landed. A few takeaways.</p>
+              <div class="chips"><span class="chip">Streak 4</span><span class="chip">Wins 3</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="clip" id="who" data-start="68.8" data-duration="10.1" data-track-index="1">
+        <div class="split">
+          <div class="say">
+            <p class="reveal" id="who-q">So who is Huey?</p>
+            <p class="note reveal" id="who-a">A collection of opinions.</p>
+            <p class="note reveal" id="who-b">Winning ideas, fact-checked, then learned.</p>
+            <p class="note reveal" id="who-c">Everyone who has argued his side.</p>
+          </div>
+          <div class="device reveal" id="huey-device">
+            <div class="screen" style="opacity: 1; align-items: center; justify-content: center">
+              <p class="brand" style="align-self: flex-start">Change My Mind</p>
+              <div class="huey">
+                <div class="blob b1"></div>
+                <div class="blob b2"></div>
+                <div class="blob b3"></div>
+                <div class="blob b4"></div>
+                <div class="blob b5"></div>
+              </div>
+              <p class="q" style="text-align: center; margin-top: 28px">Huey</p>
+              <p class="hint" style="text-align: center">The other side, made of today's winners.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="clip" id="build" data-start="78.9" data-duration="18.1" data-track-index="1">
+        <div class="stack">
+          <p class="reveal" id="b1">Built in Cursor.</p>
+          <p class="note reveal" id="b2">Firebase handles sign-in, the lobby, and streaks.</p>
+          <p class="reveal" id="b3">Two Grok agents. One speaks. One judges.</p>
+          <p class="note reveal" id="b4">Every change is tested before it ships.</p>
+          <p class="reveal" id="b5">Understanding, not conflict.</p>
+          <p class="poster reveal" id="b6" style="font-size: 72px; text-align: left; margin-top: 12px">One discussion at a time.</p>
+        </div>
+      </section>
+
+      <section class="clip" id="demo" data-start="97" data-duration="14" data-track-index="1">
+        <div class="device" id="demo-device" style="width: 620px; height: 700px">
+          <div class="screen" id="d1">
+            <p class="brand">Change My Mind</p>
+            <div class="meta"><span>Today is Sunday</span><span>0 solvers today</span></div>
+            <p class="q">Is Taylor Swift's impact on music positive or negative?</p>
+            <div class="btn">Debate</div>
+            <div class="chips"><span class="chip">Streak 4</span><span class="chip">Wins 2</span></div>
+          </div>
+          <div class="screen" id="d2">
+            <p class="brand">Change My Mind</p>
+            <p class="q">Voice or text</p>
+            <p class="hint">Huey argues back, live. Or you type, and we look for a person.</p>
+            <div class="btn" style="margin-top: 36px">Voice</div>
+            <div class="btn ghost" style="margin-top: 12px">Text</div>
+            <p class="clock">3:00</p>
+          </div>
+          <div class="screen" id="d3">
+            <p class="brand">Change My Mind</p>
+            <p class="q">You won</p>
+            <svg class="spec" viewBox="0 0 220 220">
+              <path d="M110 110 L110 18 A92 92 0 0 0 110 202 Z" fill="#7aa2d4" opacity="0.35"></path>
+              <path d="M110 110 L110 18 A92 92 0 0 1 110 202 Z" fill="#d48a7a" opacity="0.35"></path>
+              <circle cx="110" cy="110" r="92" fill="none" stroke="#4a4a4a"></circle>
+              <line x1="110" y1="18" x2="110" y2="202" stroke="#4a4a4a"></line>
+              <rect x="78" y="88" width="12" height="12" fill="#ffffff"></rect>
+            </svg>
+            <div class="bars">
+              <p>Respect</p>
+              <div class="track"><div class="fill" id="d-respect" style="transform: scaleX(0.86)"></div></div>
+              <p>Argument quality</p>
+              <div class="track"><div class="fill" id="d-quality" style="transform: scaleX(0.74)"></div></div>
+            </div>
+            <p class="hint">A good take. The streak holds.</p>
+            <div class="chips"><span class="chip">Streak 5</span><span class="chip">Wins 3</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="clip mark" id="mark" data-start="23.65" data-duration="87.35" data-track-index="5">
+        <p>Change My Mind</p>
+      </section>
+
+      <audio id="narration" src="assets/narration.mp3" data-start="10" data-duration="87" data-track-index="10" data-volume="1"></audio>
+      <div id="grain"></div>
+    </div>
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      tl.set("#respect, #quality", { scaleX: 0 }, 0);
+
+      function enter(sel, at) {
+        tl.set(sel, { opacity: 1 }, at);
+        tl.fromTo(
+          sel,
+          { y: 28 },
+          { y: 0, duration: 0.62, ease: "power3.out", immediateRender: false },
+          at,
+        );
+      }
+
+      function place(sel, at) {
+        tl.set(sel, { opacity: 1 }, at);
+        tl.fromTo(
+          sel,
+          { y: 40, scale: 1.025 },
+          { y: 0, scale: 1, duration: 0.8, ease: "power3.out", immediateRender: false },
+          at,
+        );
+      }
+
+      enter("#yell", 0.25);
+      enter("#hate", 3.5);
+      enter("#better", 6.8);
+
+      enter("#have", 10.2);
+      enter("#lost", 12.45);
+      enter("#civil", 16.05);
+
+      enter("#both", 17.3);
+      enter("#trio", 18.4);
+      enter("#try", 23.7);
+
+      enter("#noyell", 24.95);
+      enter("#share", 26.7);
+
+      enter("#every", 29.65);
+      enter("#pol", 33.95);
+
+      enter("#say-q", 36.2);
+      place("#device", 36.35);
+      tl.set("#sc-today", { opacity: 1 }, 36.35);
+
+      enter("#say-tap", 40.85);
+      tl.set("#say-q", { opacity: 0 }, 40.85);
+      tl.set("#sc-today", { opacity: 0 }, 40.85);
+      tl.set("#sc-stance", { opacity: 1 }, 40.85);
+      tl.to("#pick-pos", { backgroundColor: "#ffffff", color: "#000000", duration: 0.3 }, 41.55);
+
+      enter("#say-mode", 43.2);
+      tl.set("#say-tap", { opacity: 0 }, 43.2);
+      tl.set("#sc-stance", { opacity: 0 }, 43.2);
+      tl.set("#sc-mode", { opacity: 1 }, 43.2);
+
+      enter("#say-wait", 49.3);
+      tl.set("#say-mode", { opacity: 0 }, 49.3);
+
+      enter("#j-title", 55.95);
+      place("#results", 56.05);
+      tl.set("#respect, #quality", { opacity: 1 }, 56.4);
+      tl.fromTo("#respect", { scaleX: 0 }, { scaleX: 0.86, duration: 0.8, ease: "power2.out", immediateRender: false }, 56.45);
+      tl.fromTo("#quality", { scaleX: 0 }, { scaleX: 0.72, duration: 0.8, ease: "power2.out", immediateRender: false }, 56.65);
+      enter("#j-not", 59.55);
+      enter("#j-lose", 60.95);
+      tl.to("#respect", { scaleX: 0.2, duration: 0.45, ease: "power2.in" }, 61.0);
+      tl.fromTo("#marker", { x: 0, y: 0 }, { x: -28, y: -12, duration: 0.6, ease: "power3.out", immediateRender: false }, 62.3);
+      enter("#j-back", 66.65);
+
+      enter("#who-q", 68.9);
+      place("#huey-device", 69.0);
+      document.querySelectorAll("#huey-device .blob").forEach((el, i) => {
+        tl.set(el, { opacity: 1 }, 69.15 + i * 0.07);
+        tl.fromTo(
+          el,
+          { scale: 0.6 },
+          { scale: 1, duration: 0.5, ease: "power3.out", immediateRender: false },
+          69.15 + i * 0.07,
+        );
+      });
+      enter("#who-a", 70.15);
+      enter("#who-b", 72.25);
+      enter("#who-c", 76.35);
+
+      enter("#b1", 79.0);
+      enter("#b2", 80.45);
+      enter("#b3", 84.4);
+      enter("#b4", 88.15);
+      enter("#b5", 91.85);
+      enter("#b6", 95.55);
+
+      place("#demo-device", 97.15);
+      tl.set("#d1", { opacity: 1 }, 97.15);
+      tl.set("#d1", { opacity: 0 }, 101.4);
+      tl.set("#d2", { opacity: 1 }, 101.4);
+      tl.set("#d2", { opacity: 0 }, 105.8);
+      tl.set("#d3", { opacity: 1 }, 105.8);
+
+      window.__timelines["common-ground"] = tl;
+    </script>
+  </body>
+</html>

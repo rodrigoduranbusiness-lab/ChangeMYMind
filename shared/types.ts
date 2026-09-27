@@ -1,6 +1,18 @@
 // Types shared between the web client and the Cloud Functions.
 
-export type TopicId = 'immigration' | 'guns' | 'abortion' | 'economy' | 'ai'
+export type TopicId =
+  | 'immigration'
+  | 'guns'
+  | 'abortion'
+  | 'economy'
+  | 'ai'
+  | 'taylor_swift'
+  | 'ai_humanity'
+
+/** User stance relative to today's proposition (maps to Side in TopicConfig). */
+export type Stance = 'for' | 'against'
+
+export type DebateModality = 'voice' | 'text'
 
 /** Which end of the spectrum a position sits on. */
 export type Side = 'left' | 'right'
@@ -145,6 +157,28 @@ export interface UserProfile {
   diagnostic?: DiagnosticResult
   /** Total debates started (server-maintained). */
   debateRoundCount?: number
+  /**
+   * Lifetime day-wins (America/New_York). At most one increment per calendar day.
+   * Server-only — clients must not write this field.
+   */
+  wins?: number
+  /**
+   * Consecutive calendar days with at least one win. Server-only.
+   */
+  streak?: number
+  /**
+   * Max consecutive win days ever. Server-only.
+   */
+  longestStreak?: number
+  /**
+   * Lifetime debate wins (every passed/won session). Server-only — not day-wins.
+   */
+  debatesWon?: number
+  /**
+   * YYYY-MM-DD (America/New_York) of the last day the user won, or null.
+   * Server-only.
+   */
+  lastWinDateKey?: string | null
 }
 
 /** Index row for each debate round (mirrors `sessions/{sessionId}`). */
@@ -207,11 +241,21 @@ export interface DebateSession {
   results?: SessionResults
   /** Pass unlocks harder topic + resources (future). */
   debateVerdict?: 'pass' | 'needs_work'
+  /** text = AI/peer text debate; voice = Live mic session. */
+  modality?: DebateModality
 }
 
 // ---------------------------------------------------------------------------
 // Callable function payloads
 // ---------------------------------------------------------------------------
+
+export interface StartSessionRequest {
+  /** Explicit daily-topic debate; skips diagnostic-based topic pick. */
+  topicId?: TopicId
+  userSide?: Side
+  /** text = AI text opponent session (no Live voice). */
+  modality?: DebateModality
+}
 
 export interface StartSessionResponse {
   sessionId: string
@@ -223,6 +267,53 @@ export interface StartSessionResponse {
   startedAt: number
   /** Server-computed hard deadline, epoch ms. */
   deadline: number
+  /**
+   * Today's Huey winner-context for the opponent system prompt
+   * (America/New_York date). Empty / placeholder when none yet.
+   */
+  hueyDailyContext?: string
+  /** How many sanitized winner contributions Huey has absorbed today. */
+  hueyContributionCount?: number
+}
+
+export interface ReplyTextTurnRequest {
+  sessionId: string
+  userText: string
+}
+
+export interface ReplyTextTurnResponse {
+  outcome: 'continue' | 'passed' | 'needs_work' | 'lost'
+  reason: SessionOutcomeReason | null
+  remainingMs: number
+  aiText: string | null
+  exchangeCount: number
+}
+
+export interface JoinTextLobbyRequest {
+  topicId: TopicId
+  stance: Stance
+  displayName?: string
+}
+
+export interface JoinTextLobbyResponse {
+  status: 'waiting' | 'matched' | 'ai_fallback'
+  roomId: string | null
+  opponentUid: string | null
+}
+
+export interface LeaveTextLobbyRequest {
+  topicId: TopicId
+}
+
+export interface SendTextMessageRequest {
+  roomId: string
+  text: string
+}
+
+export interface SendTextMessageResponse {
+  outcome: 'continue' | 'lost'
+  reason: SessionOutcomeReason | null
+  messageId: string | null
 }
 
 export interface SubmitTurnRequest {
@@ -280,4 +371,27 @@ export interface FinalizeSessionResponse {
   status: SessionStatus
   reason: SessionOutcomeReason | null
   results: SessionResults
+}
+
+// ---------------------------------------------------------------------------
+// Huey daily learning (winners only)
+// ---------------------------------------------------------------------------
+
+/** One sanitized winner contribution absorbed into Huey's day. */
+export interface HueyContribution {
+  /** Anonymized uid hash — never the raw uid. */
+  uidHash: string
+  stance: Side
+  summary: string
+  mannerisms: string[]
+  argumentPoints: string[]
+  styleTags?: string[]
+  createdAt: number
+}
+
+/** Firestore `hueyDays/{dateKey}` — dateKey is America/New_York YYYY-MM-DD. */
+export interface HueyDayDoc {
+  topicId: TopicId
+  updatedAt: number
+  contributions: HueyContribution[]
 }

@@ -207,7 +207,7 @@ export default function SignIn() {
   }
 
   return (
-    <div style={s.page}>
+    <div style={{ ...s.page, background: s.color.bg }}>
       <OnboardingTopBrand />
       {step === 'intro' ? (
         <OnboardingIntro onDone={() => setStep('phone')} />

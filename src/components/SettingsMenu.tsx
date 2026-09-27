@@ -166,6 +166,21 @@ export default function SettingsMenu() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <Link
+                to="/diagnostic"
+                onClick={() => setOpen(false)}
+                style={{
+                  ...rowButton,
+                  display: 'block',
+                  textAlign: 'center',
+                  textDecoration: 'none',
+                  boxSizing: 'border-box',
+                  lineHeight: '44px',
+                }}
+              >
+                Retake the questions
+              </Link>
+
+              <Link
                 to="/terms"
                 onClick={() => setOpen(false)}
                 style={{
@@ -212,7 +227,7 @@ export default function SettingsMenu() {
                   style={{
                     ...s.disabled(rowButton, busy),
                     color: s.color.danger,
-                    borderColor: 'rgba(224, 112, 112, 0.45)',
+                    border: 'none',
                     background: 'rgba(224, 112, 112, 0.06)',
                   }}
                 >
@@ -224,7 +239,7 @@ export default function SettingsMenu() {
                     padding: 14,
                     ...s.glass,
                     background: 'rgba(224, 112, 112, 0.08)',
-                    borderColor: 'rgba(224, 112, 112, 0.35)',
+                    border: 'none',
                   }}
                 >
                   <p style={{ ...s.subheading, fontSize: 14, margin: '0 0 12px', color: s.color.danger }}>
@@ -240,7 +255,7 @@ export default function SettingsMenu() {
                         minHeight: 44,
                         fontSize: 15,
                         background: s.color.danger,
-                        borderColor: s.color.danger,
+                        border: 'none',
                         color: s.color.text,
                       }}
                     >

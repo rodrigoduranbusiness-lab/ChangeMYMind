@@ -7,11 +7,23 @@ rules_version = '2';
 // (startedAt, transcript, judgeEvals, status, results) is written only by
 // Cloud Functions via the Admin SDK, which bypasses these rules. That means a
 // user cannot fabricate a win by writing to Firestore directly.
+//
+// wins / streak / longestStreak / debatesWon / lastWinDateKey / debateRoundCount
+// are server-only on the user profile — clients cannot create or update them.
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function isOwner(uid) {
       return request.auth != null && request.auth.uid == uid;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isRoomParticipant(roomId) {
+      return isSignedIn()
+        && request.auth.uid in get(/databases/$(database)/documents/textRooms/$(roomId)).data.participants;
     }
 
     // Fields the client is allowed to own on its profile document.
@@ -46,6 +58,32 @@ service cloud.firestore {
         allow get, list: if isOwner(uid);
         allow create, update, delete: if false;
       }
+    }
+
+    // Text peer lobby — own queue entry only; writes via callables.
+    match /textLobbies/{topicId}/queue/{uid} {
+      allow get, list: if isOwner(uid);
+      allow create, update, delete: if false;
+    }
+
+    // Peer text rooms — participants may read; all writes via callables.
+    match /textRooms/{roomId} {
+      allow get: if isSignedIn()
+        && request.auth.uid in resource.data.participants;
+      allow list: if false;
+      allow create, update, delete: if false;
+
+      match /messages/{msgId} {
+        allow get, list: if isRoomParticipant(roomId);
+        allow create, update, delete: if false;
+      }
+    }
+
+    // Huey daily learning — authenticated users may read today's summary for UI;
+    // all writes are Admin SDK only (Cloud Functions).
+    match /hueyDays/{dateKey} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
     }
 
     // Deny everything else by default.

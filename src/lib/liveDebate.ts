@@ -1,6 +1,7 @@
 import debaterPromptRaw from '../../prompts/debater.md?raw'
 import {
   detectInstantLossSpeech,
+  AI_MAX_SPEECH_MS,
   INTERRUPTION_LEVEL_THRESHOLD,
   INTERRUPTION_OVERLAP_MS,
   USER_MAX_SPEECH_MS,
@@ -43,6 +44,8 @@ export interface DebateHandlers {
 export interface DebateControllerOptions {
   topic: TopicId
   debaterSide: Side
+  /** Today's Huey winner context for the system prompt. */
+  hueyDailyContext?: string
   handlers: DebateHandlers
 }
 
@@ -56,25 +59,23 @@ const VOICE_HOLD_MS = 400
 const TURN_SILENCE_RESET_MS = 850
 
 /** After this much silence, nudge Live API that the user's turn ended (hybrid VAD). */
-const USER_END_OF_SPEECH_MS = 900
+const USER_END_OF_SPEECH_MS = 750
 
 /** If the model still has not spoken after we ended the user's turn, nudge once. */
-const AI_REPLY_NUDGE_MS = 2_200
-
-/** After an interrupt, give the model a beat to resume audio. */
-const INTERRUPTED_RESUME_MS = 1_400
+const AI_REPLY_NUDGE_MS = 1_600
 
 /** Watchdog: no AI audio this long after we expect a reply → nudge again. */
-const AI_STALL_MS = 4_500
+const AI_STALL_MS = 3_200
 
-const MIN_NUDGE_GAP_MS = 7_000
-const MAX_NUDGES_BEFORE_TURN = 3
+const MIN_NUDGE_GAP_MS = 3_500
+const MAX_NUDGES_BEFORE_TURN = 4
 
 const SPEAKER_POLL_MS = 120
 
 export class DebateController {
   private topic: TopicId
   private debaterSide: Side
+  private hueyDailyContext: string
   private handlers: DebateHandlers
 
   private session?: LiveVoiceSession
@@ -97,19 +98,22 @@ export class DebateController {
   private userTurnEndSignaled = false
   private userSpokeSinceTurnEnd = false
   private aiReplyNudgeTimer?: number
-  private interruptedResumeTimer?: number
   private opponentReplyDueAt: number | null = null
   private lastAiAudioAt = 0
   private nudgeCountThisCycle = 0
   private lastNudgeAt = 0
   private speaker: SpeakerState = 'idle'
   private speakerTimer?: number
+  /** When the current AI audio streak started (for speech cap). */
+  private aiSpeechSince: number | null = null
+  private aiSpeechCappedThisTurn = false
 
   private stopping = false
 
   constructor(options: DebateControllerOptions) {
     this.topic = options.topic
     this.debaterSide = options.debaterSide
+    this.hueyDailyContext = options.hueyDailyContext ?? 'No prior winner lessons yet today.'
     this.handlers = options.handlers
   }
 
@@ -123,11 +127,16 @@ export class DebateController {
       const wasPlaying = this.aiPlaying
       this.aiPlaying = playing
       if (playing && !wasPlaying) {
+        this.aiSpeechSince = Date.now()
+        this.aiSpeechCappedThisTurn = false
         this.onOpponentAudio()
         this.overlapReported = false
         this.overlapSince = null
         this.userSpeechSince = null
         this.notifyUserTurnSpeech()
+      }
+      if (!playing) {
+        this.aiSpeechSince = null
       }
     })
     await this.player.resume()
@@ -192,7 +201,6 @@ export class DebateController {
       this.speakerTimer = undefined
     }
     this.clearAiReplyNudge()
-    this.clearInterruptedResumeNudge()
 
     await this.mic?.stop()
     this.mic = undefined
@@ -213,9 +221,17 @@ export class DebateController {
 
   private async connect(): Promise<void> {
     const access = await mintLiveAccess()
+    if (access.hueyDailyContext?.trim()) {
+      this.hueyDailyContext = access.hueyDailyContext
+    }
     const session = await connectLiveVoiceSession(
       access,
-      renderOpponentPrompt(debaterPromptRaw, this.topic, this.debaterSide),
+      renderOpponentPrompt(
+        debaterPromptRaw,
+        this.topic,
+        this.debaterSide,
+        this.hueyDailyContext,
+      ),
     )
     this.session = session
     void this.runReceiveLoop(session)
@@ -242,13 +258,22 @@ export class DebateController {
   private handleServerContent(content: VertexLiveServerContent): void {
     if (content.interrupted) {
       this.player?.interrupt()
-      this.scheduleInterruptedResumeNudge()
+      this.aiPlaying = false
+      this.aiSpeechSince = null
+      this.session?.cancelResponse()
+      // Do not auto-resume after barge-in — let the user finish, then VAD/nudge.
+      this.markOpponentReplyDue()
+      this.scheduleAiReplyNudge()
     }
 
     const audioPart = content.modelTurn?.parts?.find((part) =>
       part.inlineData?.mimeType.startsWith('audio/'),
     )
     if (audioPart?.inlineData) {
+      if (this.aiSpeechCappedThisTurn) {
+        // Drop late audio after we hard-capped this turn.
+        return
+      }
       this.onOpponentAudio()
       this.player?.enqueue(base64ToArrayBuffer(audioPart.inlineData.data))
     }
@@ -265,8 +290,9 @@ export class DebateController {
     if (content.turnComplete) {
       this.userTurnEndSignaled = false
       this.userSpokeSinceTurnEnd = false
+      this.aiSpeechCappedThisTurn = false
+      this.aiSpeechSince = null
       this.clearAiReplyNudge()
-      this.clearInterruptedResumeNudge()
       this.flushTurn()
     }
   }
@@ -276,7 +302,6 @@ export class DebateController {
     this.opponentReplyDueAt = null
     this.nudgeCountThisCycle = 0
     this.clearAiReplyNudge()
-    this.clearInterruptedResumeNudge()
   }
 
   private flushTurn(): void {
@@ -327,6 +352,7 @@ export class DebateController {
       if (this.aiPlaying) {
         this.userTurnEndSignaled = false
         this.setSpeaker('ai')
+        this.maybeCutAiSpeechCap()
       } else {
         this.overlapReported = false
         this.overlapSince = null
@@ -341,6 +367,26 @@ export class DebateController {
         }
       }
     }, SPEAKER_POLL_MS)
+  }
+
+  /** Hard stop Huey after ~20s so it cannot talk for a full minute. */
+  private maybeCutAiSpeechCap(): void {
+    if (this.aiSpeechCappedThisTurn || this.aiSpeechSince === null) {
+      return
+    }
+    if (Date.now() - this.aiSpeechSince < AI_MAX_SPEECH_MS) {
+      return
+    }
+    this.aiSpeechCappedThisTurn = true
+    this.player?.interrupt()
+    this.session?.cancelResponse()
+    this.aiPlaying = false
+    this.aiSpeechSince = null
+    this.setSpeaker('idle')
+    // Close the turn with whatever was said so far, then wait for the user.
+    if (this.aiBuffer.trim() || this.userBuffer.trim()) {
+      this.flushTurn()
+    }
   }
 
   private maybeRecoverStalledOpponent(): void {
@@ -388,17 +434,6 @@ export class DebateController {
     }, AI_REPLY_NUDGE_MS)
   }
 
-  private scheduleInterruptedResumeNudge(): void {
-    this.clearInterruptedResumeNudge()
-    this.markOpponentReplyDue()
-    this.interruptedResumeTimer = window.setTimeout(() => {
-      this.interruptedResumeTimer = undefined
-      this.tryOpponentNudge(
-        'You were cut off. Finish your point in one or two spoken sentences, then let the user respond.',
-      )
-    }, INTERRUPTED_RESUME_MS)
-  }
-
   private tryOpponentNudge(spokenInstruction: string): void {
     if (this.stopping || this.aiPlaying || this.session?.isClosed) {
       return
@@ -420,13 +455,6 @@ export class DebateController {
     if (this.aiReplyNudgeTimer !== undefined) {
       window.clearTimeout(this.aiReplyNudgeTimer)
       this.aiReplyNudgeTimer = undefined
-    }
-  }
-
-  private clearInterruptedResumeNudge(): void {
-    if (this.interruptedResumeTimer !== undefined) {
-      window.clearTimeout(this.interruptedResumeTimer)
-      this.interruptedResumeTimer = undefined
     }
   }
 
@@ -503,7 +531,14 @@ export class DebateController {
     if (now - this.overlapSince >= INTERRUPTION_OVERLAP_MS) {
       this.overlapReported = true
       this.overlapSince = null
+      // Cut model audio so the user is not talked over / ignored.
+      this.player?.interrupt()
+      this.session?.cancelResponse()
+      this.aiPlaying = false
+      this.aiSpeechSince = null
       this.handlers.onInterruption?.()
+      this.markOpponentReplyDue()
+      this.scheduleAiReplyNudge()
     }
   }
 

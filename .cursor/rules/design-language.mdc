@@ -1,0 +1,28 @@
+---
+description: Permanent Common Ground UI — black, white CMU Serif, grain, no all-caps
+alwaysApply: true
+---
+
+# Common Ground design language
+
+Keep this permanent. Super simple: **black background, white CMU Serif, film grain**.
+
+## Must use
+
+- **Typography:** Computer Modern / CMU Serif for UI text; CMU Typewriter Text for monospace (codes, timer). Import via `computer-modern` in `src/index.css`. Never Inter, Roboto, system-ui, or other default sans stacks.
+- **Texture:** Film grain is applied on `body::before` in `src/index.css` (fine grit, light screen blend). Do not remove it. Keep cards borderless / transparent on the black field.
+- **Tokens:** All colors, fonts, and shared element styles live in `src/theme.ts`. Prefer those tokens; do not invent a parallel palette.
+- **Styling format:** Inline `style={{ ... }}` objects only (no Tailwind, no CSS modules for components).
+
+## Visual rules
+
+- Black field (`color.bg` ≈ `#000000`), white text (`color.text`), muted gray for secondary copy.
+- **No all-caps styling** — no `textTransform: 'uppercase'`, no letterspaced kickers/labels. Sentence case everywhere (including spectrum labels and win/lose).
+- Square corners (`borderRadius: 0`). No bordered cards on auth/onboarding.
+- Primary buttons: white fill, black text. Secondary: transparent with a quiet border.
+- No gradients, glow effects, soft drop shadows, warm cream paper, or purple SaaS themes.
+- Party blue/red (`color.left` / `color.right`) only on the results spectrum, at equal weight.
+
+## When changing UI
+
+Match this language. Do not reintroduce newsprint cream, amber accents, or all-caps rubrics.

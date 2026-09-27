@@ -6,18 +6,24 @@ import type {
   DebateSession,
   DiagnosticResult,
   FinalizeSessionResponse,
+  JoinTextLobbyRequest,
+  JoinTextLobbyResponse,
+  ReplyTextTurnResponse,
   ReportConductRequest,
   ReportConductResponse,
   SessionOutcomeReason,
+  Stance,
+  StartSessionRequest,
   StartSessionResponse,
   SubmitTurnResponse,
   SyncTranscriptResponse,
+  TopicId,
   TranscriptEntry,
   UserProfile,
 } from '@shared/types'
 import { abandonBeaconUrl, auth, db, functions } from '../firebase'
 
-const callStartSession = httpsCallable<Record<string, never>, StartSessionResponse>(
+const callStartSession = httpsCallable<StartSessionRequest, StartSessionResponse>(
   functions,
   'startSession',
 )
@@ -26,6 +32,11 @@ const callSubmitTurn = httpsCallable<
   { sessionId: string; userText: string; aiText: string },
   SubmitTurnResponse
 >(functions, 'submitTurn')
+
+const callReplyTextTurn = httpsCallable<
+  { sessionId: string; userText: string },
+  ReplyTextTurnResponse
+>(functions, 'replyTextTurn')
 
 const callFinalizeSession = httpsCallable<
   { sessionId: string; reason?: SessionOutcomeReason; transcript?: TranscriptEntry[] },
@@ -47,8 +58,30 @@ const callReportConduct = httpsCallable<ReportConductRequest, ReportConductRespo
   'reportConduct',
 )
 
-export async function startSession(): Promise<StartSessionResponse> {
-  const result = await callStartSession({})
+const callJoinTextLobby = httpsCallable<JoinTextLobbyRequest, JoinTextLobbyResponse>(
+  functions,
+  'joinTextLobby',
+)
+
+const callHeartbeatTextLobby = httpsCallable<JoinTextLobbyRequest, { ok: true }>(
+  functions,
+  'heartbeatTextLobby',
+)
+
+const callLeaveTextLobby = httpsCallable<{ topicId: string }, { ok: true }>(
+  functions,
+  'leaveTextLobby',
+)
+
+const callSendTextMessage = httpsCallable<
+  { roomId: string; text: string },
+  { outcome: 'continue' | 'lost'; reason: SessionOutcomeReason | null; messageId: string | null }
+>(functions, 'sendTextMessage')
+
+export async function startSession(
+  opts: StartSessionRequest = {},
+): Promise<StartSessionResponse> {
+  const result = await callStartSession(opts)
   return result.data
 }
 
@@ -58,6 +91,14 @@ export async function submitTurn(
   aiText: string,
 ): Promise<SubmitTurnResponse> {
   const result = await callSubmitTurn({ sessionId, userText, aiText })
+  return result.data
+}
+
+export async function replyTextTurn(
+  sessionId: string,
+  userText: string,
+): Promise<ReplyTextTurnResponse> {
+  const result = await callReplyTextTurn({ sessionId, userText })
   return result.data
 }
 
@@ -92,6 +133,33 @@ export async function reportConduct(
   return result.data
 }
 
+export async function joinTextLobby(
+  data: JoinTextLobbyRequest,
+): Promise<JoinTextLobbyResponse> {
+  const result = await callJoinTextLobby(data)
+  return result.data
+}
+
+export async function heartbeatTextLobby(data: JoinTextLobbyRequest): Promise<void> {
+  await callHeartbeatTextLobby(data)
+}
+
+export async function leaveTextLobby(topicId: string): Promise<void> {
+  await callLeaveTextLobby({ topicId })
+}
+
+export async function sendTextMessage(
+  roomId: string,
+  text: string,
+): Promise<{
+  outcome: 'continue' | 'lost'
+  reason: SessionOutcomeReason | null
+  messageId: string | null
+}> {
+  const result = await callSendTextMessage({ roomId, text })
+  return result.data
+}
+
 export interface LiveAccessCredentials {
   provider: AiProvider
   accessToken: string
@@ -99,6 +167,7 @@ export interface LiveAccessCredentials {
   wsUrl: string
   model: string
   location: string
+  hueyDailyContext?: string
 }
 
 const callMintLiveAccess = httpsCallable<Record<string, never>, LiveAccessCredentials>(
@@ -111,23 +180,13 @@ let liveAccessInflight: Promise<LiveAccessCredentials> | null = null
 
 const LIVE_ACCESS_TTL_MS = 8 * 60 * 1000
 
-/** Warm the Live token while the user is still on the Allow-mic screen. */
+/**
+ * Warm one Live credential while the user is still on the Allow-mic screen.
+ * Grok ephemeral tokens are single-use — {@link mintLiveAccess} takes the
+ * warmed token at most once, then remints for reconnects.
+ */
 export function prefetchLiveAccess(): void {
-  void mintLiveAccess().catch(() => {
-    // Best-effort; start() will retry.
-  })
-}
-
-/** Short-lived Vertex token for the browser Live WebSocket. */
-export async function mintLiveAccess(): Promise<LiveAccessCredentials> {
-  const now = Date.now()
-  if (liveAccessCache && now - liveAccessCache.at < LIVE_ACCESS_TTL_MS) {
-    return liveAccessCache.creds
-  }
-  if (liveAccessInflight) {
-    return liveAccessInflight
-  }
-
+  if (liveAccessCache || liveAccessInflight) return
   liveAccessInflight = callMintLiveAccess({})
     .then((result) => {
       liveAccessCache = { creds: result.data, at: Date.now() }
@@ -136,8 +195,113 @@ export async function mintLiveAccess(): Promise<LiveAccessCredentials> {
     .finally(() => {
       liveAccessInflight = null
     })
+  void liveAccessInflight.catch(() => {
+    liveAccessCache = null
+  })
+}
 
-  return liveAccessInflight
+// --- Text lobby prefetch (optional single warm join — no poll loop) -------
+
+export type TextLobbyPrefetchState = {
+  topicId: TopicId
+  stance: Stance
+  startedAt: number
+  /** Latest join result; null while the first join is still in flight. */
+  result: JoinTextLobbyResponse | null
+  failed: boolean
+}
+
+let textLobbyPrefetch: TextLobbyPrefetchState | null = null
+
+/**
+ * One optional warm join (e.g. hover on Text). No heartbeat/poll timers —
+ * those burned thousands of callable invocations. TextDebate owns wait logic.
+ */
+export function prefetchTextLobby(topicId: TopicId, stance: Stance): void {
+  if (
+    textLobbyPrefetch &&
+    textLobbyPrefetch.topicId === topicId &&
+    textLobbyPrefetch.stance === stance &&
+    !textLobbyPrefetch.failed
+  ) {
+    return
+  }
+
+  if (
+    textLobbyPrefetch &&
+    (textLobbyPrefetch.topicId !== topicId || textLobbyPrefetch.stance !== stance)
+  ) {
+    cancelTextLobbyPrefetch()
+  }
+
+  textLobbyPrefetch = {
+    topicId,
+    stance,
+    startedAt: Date.now(),
+    result: null,
+    failed: false,
+  }
+
+  void joinTextLobby({ topicId, stance })
+    .then((result) => {
+      if (!textLobbyPrefetch) return
+      if (
+        textLobbyPrefetch.topicId !== topicId ||
+        textLobbyPrefetch.stance !== stance
+      ) {
+        return
+      }
+      textLobbyPrefetch = { ...textLobbyPrefetch, result, failed: false }
+    })
+    .catch(() => {
+      if (textLobbyPrefetch) {
+        textLobbyPrefetch = { ...textLobbyPrefetch, failed: true }
+      }
+    })
+}
+
+/** Snapshot of the in-flight / completed lobby warm (does not transfer ownership). */
+export function getTextLobbyPrefetch(): TextLobbyPrefetchState | null {
+  return textLobbyPrefetch
+}
+
+/**
+ * Hand off prefetch to TextDebate: return the snapshot and clear the module
+ * cache. Does not leave the lobby.
+ */
+export function consumeTextLobbyPrefetch(): TextLobbyPrefetchState | null {
+  const snap = textLobbyPrefetch
+  textLobbyPrefetch = null
+  return snap
+}
+
+/** Leave lobby + clear warm state (e.g. user picked Voice instead). */
+export function cancelTextLobbyPrefetch(): void {
+  const topicId = textLobbyPrefetch?.topicId
+  textLobbyPrefetch = null
+  if (topicId) {
+    void leaveTextLobby(topicId).catch(() => {})
+  }
+}
+
+/**
+ * Short-lived Live WebSocket credential (Vertex OAuth or Grok ephemeral).
+ * Prefetch may warm one token; this takes it once. Call again to remint —
+ * required because xAI Grok client secrets are single-use per WebSocket.
+ */
+export async function mintLiveAccess(): Promise<LiveAccessCredentials> {
+  if (liveAccessInflight) {
+    await liveAccessInflight.catch(() => null)
+  }
+
+  if (liveAccessCache && Date.now() - liveAccessCache.at < LIVE_ACCESS_TTL_MS) {
+    const creds = liveAccessCache.creds
+    liveAccessCache = null
+    return creds
+  }
+
+  const result = await callMintLiveAccess({})
+  return result.data
 }
 
 // --- Firestore reads/writes the client is allowed to do --------------------
@@ -152,15 +316,43 @@ export async function ensureUserProfile(uid: string, phone: string | null): Prom
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
-    return { phone, createdAt: Date.now() }
+    return {
+      phone,
+      createdAt: Date.now(),
+      wins: 0,
+      streak: 0,
+      longestStreak: 0,
+      debateRoundCount: 0,
+      debatesWon: 0,
+      lastWinDateKey: null,
+    }
   }
 
-  return snapshot.data() as UserProfile
+  const data = snapshot.data() as UserProfile
+  return {
+    ...data,
+    wins: typeof data.wins === 'number' ? data.wins : 0,
+    streak: typeof data.streak === 'number' ? data.streak : 0,
+    longestStreak: typeof data.longestStreak === 'number' ? data.longestStreak : 0,
+    debateRoundCount: typeof data.debateRoundCount === 'number' ? data.debateRoundCount : 0,
+    debatesWon: typeof data.debatesWon === 'number' ? data.debatesWon : 0,
+    lastWinDateKey: typeof data.lastWinDateKey === 'string' ? data.lastWinDateKey : null,
+  }
 }
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   const snapshot = await getDoc(doc(db, 'users', uid))
-  return snapshot.exists() ? (snapshot.data() as UserProfile) : null
+  if (!snapshot.exists()) return null
+  const data = snapshot.data() as UserProfile
+  return {
+    ...data,
+    wins: typeof data.wins === 'number' ? data.wins : 0,
+    streak: typeof data.streak === 'number' ? data.streak : 0,
+    longestStreak: typeof data.longestStreak === 'number' ? data.longestStreak : 0,
+    debateRoundCount: typeof data.debateRoundCount === 'number' ? data.debateRoundCount : 0,
+    debatesWon: typeof data.debatesWon === 'number' ? data.debatesWon : 0,
+    lastWinDateKey: typeof data.lastWinDateKey === 'string' ? data.lastWinDateKey : null,
+  }
 }
 
 export async function saveDiagnostic(uid: string, diagnostic: DiagnosticResult): Promise<void> {

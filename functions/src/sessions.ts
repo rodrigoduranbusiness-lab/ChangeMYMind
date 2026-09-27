@@ -5,7 +5,8 @@ import type { CallableRequest } from 'firebase-functions/v2/https'
 
 import { REGION } from './config'
 import { auth, db, debateRoundRef, sessionRef, userRef } from './firebase'
-import { runSessionJudge, runTakeaways } from './llm'
+import { recordHueyWinContribution, loadHueyDailyContext } from './huey'
+import { runSessionJudge, runTakeaways, runTextDebaterReply } from './llm'
 import { detectInstantLossSpeech, INTERRUPTIONS_TO_LOSE } from './shared/conduct'
 import { looksLikePromptInjection } from './shared/promptGuard'
 import {
@@ -18,30 +19,38 @@ import {
   decideOutcomeFromVerdict,
   outcomeDescription,
 } from './shared/rules'
+import { transcriptRequestsForceWin } from './shared/judgeVerdict'
 import {
   DEBATE_DURATION_MS,
   LATE_TURN_GRACE_MS,
   MAX_PAUSE_CREDIT_MS,
   buildResults,
 } from './shared/scoring'
-import { oppositeSide, sideFromLean } from './shared/topics'
+import { applyStreakUpdate } from './shared/streak'
+import { getTopic, oppositeSide, sideFromLean, TOPIC_IDS } from './shared/topics'
 import { mergeTranscriptAppend, sanitizeTranscriptList } from './shared/transcriptMerge'
 import type {
+  DebateModality,
   DebateRoundRecord,
   DebateSession,
   DiagnosticResult,
   FinalizeSessionRequest,
   FinalizeSessionResponse,
   EventLogEntry,
+  ReplyTextTurnRequest,
+  ReplyTextTurnResponse,
   ReportConductRequest,
   ReportConductResponse,
   SessionOutcomeReason,
   SessionStatus,
+  Side,
+  StartSessionRequest,
   StartSessionResponse,
   SubmitTurnRequest,
   SubmitTurnResponse,
   SyncTranscriptRequest,
   SyncTranscriptResponse,
+  TopicId,
   TranscriptEntry,
 } from './shared/types'
 
@@ -61,13 +70,51 @@ export function deadlineFor(session: Pick<DebateSession, 'startedAt' | 'pausedMs
   return session.startedAt + DEBATE_DURATION_MS + credited
 }
 
-async function loadDiagnostic(uid: string): Promise<DiagnosticResult> {
+async function loadDiagnostic(uid: string): Promise<DiagnosticResult | null> {
   const snapshot = await userRef(uid).get()
   const diagnostic = snapshot.get('diagnostic') as DiagnosticResult | undefined
   if (!diagnostic?.assignedTopic) {
-    throw new HttpsError('failed-precondition', 'Complete the diagnostic first.')
+    return null
   }
   return diagnostic
+}
+
+/** Spectrum results still need a DiagnosticResult when the user skipped the quiz. */
+function syntheticDiagnostic(topic: TopicId, userSide: Side): DiagnosticResult {
+  const lean = userSide === 'left' ? -0.6 : 0.6
+  const topicLeans = {} as Record<TopicId, number>
+  const topicExtremity = {} as Record<TopicId, number>
+  for (const id of TOPIC_IDS) {
+    topicLeans[id] = id === topic ? lean : 0
+    topicExtremity[id] = id === topic ? Math.abs(lean) : 0
+  }
+  return {
+    answers: [],
+    topicLeans,
+    topicExtremity,
+    openness: 0.5,
+    assignedTopic: topic,
+  }
+}
+
+function parseExplicitTopicSide(data: unknown): { topicId: TopicId; userSide: Side } | null {
+  if (!data || typeof data !== 'object') return null
+  const body = data as StartSessionRequest
+  if (!body.topicId || !body.userSide) return null
+  if (!TOPIC_IDS.includes(body.topicId)) {
+    throw new HttpsError('invalid-argument', 'Unknown topicId.')
+  }
+  if (body.userSide !== 'left' && body.userSide !== 'right') {
+    throw new HttpsError('invalid-argument', 'userSide must be left or right.')
+  }
+  getTopic(body.topicId)
+  return { topicId: body.topicId, userSide: body.userSide }
+}
+
+function parseModality(data: unknown): DebateModality | undefined {
+  if (!data || typeof data !== 'object') return undefined
+  const modality = (data as StartSessionRequest).modality
+  return modality === 'text' || modality === 'voice' ? modality : undefined
 }
 
 async function loadSession(uid: string, sessionId: string): Promise<DebateSession> {
@@ -90,15 +137,32 @@ async function loadSession(uid: string, sessionId: string): Promise<DebateSessio
  * The client never gets to say when the debate began, so it cannot buy itself
  * extra time by lying about the start.
  */
-export const startSession = onCall<unknown, Promise<StartSessionResponse>>(
+export const startSession = onCall<StartSessionRequest, Promise<StartSessionResponse>>(
   { region: REGION },
   async (request) => {
     const uid = requireUid(request)
-    const diagnostic = await loadDiagnostic(uid)
+    const explicit = parseExplicitTopicSide(request.data)
+    const modality = parseModality(request.data)
 
-    const topic = diagnostic.assignedTopic
-    const lean = diagnostic.topicLeans?.[topic] ?? 0
-    const userSide = sideFromLean(lean)
+    let topic: TopicId
+    let userSide: Side
+
+    if (explicit) {
+      topic = explicit.topicId
+      userSide = explicit.userSide
+    } else {
+      const diagnostic = await loadDiagnostic(uid)
+      if (!diagnostic) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Pick today’s topic and stance, or complete the diagnostic first.',
+        )
+      }
+      topic = diagnostic.assignedTopic
+      const lean = diagnostic.topicLeans?.[topic] ?? 0
+      userSide = sideFromLean(lean)
+    }
+
     const debaterSide = oppositeSide(userSide)
 
     // Only one debate may be live at a time; anything still open was left behind.
@@ -151,6 +215,7 @@ export const startSession = onCall<unknown, Promise<StartSessionResponse>>(
         eventLog: [],
         conductEvents: 0,
         conductPenaltyPoints: 0,
+        ...(modality ? { modality } : {}),
       }
       tx.set(ref, session)
       tx.set(debateRoundRef(uid, ref.id), {
@@ -162,7 +227,24 @@ export const startSession = onCall<unknown, Promise<StartSessionResponse>>(
         status: 'active',
         outcomeReason: null,
       } satisfies DebateRoundRecord)
-      tx.update(userRef(uid), { debateRoundCount: nextRound })
+
+      // Clear stale streaks when the user starts a new debate after missing a day.
+      const streakFields = applyStreakUpdate(
+        {
+          wins: userSnap.get('wins') as number | undefined,
+          streak: userSnap.get('streak') as number | undefined,
+          lastWinDateKey: userSnap.get('lastWinDateKey') as string | null | undefined,
+          longestStreak: userSnap.get('longestStreak') as number | undefined,
+        },
+        { won: false },
+      )
+      tx.update(userRef(uid), {
+        debateRoundCount: nextRound,
+        wins: streakFields.wins,
+        streak: streakFields.streak,
+        lastWinDateKey: streakFields.lastWinDateKey,
+        longestStreak: streakFields.longestStreak,
+      })
       return nextRound
     })
 
@@ -183,6 +265,8 @@ export const startSession = onCall<unknown, Promise<StartSessionResponse>>(
 
     logger.info('Session started', { uid, sessionId: ref.id, topic, debaterSide, roundNumber })
 
+    const huey = await loadHueyDailyContext()
+
     return {
       sessionId: ref.id,
       roundNumber,
@@ -191,6 +275,8 @@ export const startSession = onCall<unknown, Promise<StartSessionResponse>>(
       debaterSide,
       startedAt,
       deadline: deadlineFor(sessionForDeadline),
+      hueyDailyContext: huey.context,
+      hueyContributionCount: huey.count,
     }
   },
 )
@@ -394,8 +480,14 @@ export const finalizeSession = onCall<FinalizeSessionRequest, Promise<FinalizeSe
       if (reason === 'abandoned') {
         status = 'abandoned'
         outcomeReason = 'abandoned'
-      } else if (Date.now() >= deadlineFor(session) - LATE_TURN_GRACE_MS) {
-        // Timer expired — fall through to session judge below.
+      } else if (
+        Date.now() >= deadlineFor(session) - LATE_TURN_GRACE_MS ||
+        // Text debates expose "End and score" before the timer; allow that path.
+        session.modality === 'text' ||
+        // Client timeout (covers small clock skew vs the hard deadline).
+        reason === 'timeout'
+      ) {
+        // Fall through to session judge below.
       } else {
         throw new HttpsError(
           'failed-precondition',
@@ -432,16 +524,37 @@ export const finalizeSession = onCall<FinalizeSessionRequest, Promise<FinalizeSe
       }
     }
 
-    const diagnostic = await loadDiagnostic(uid)
-    const takeaways =
-      judgeVerdict?.feedback_summary && !skipJudge
-        ? [judgeVerdict.feedback_summary]
-        : await runTakeaways({
-            topic: session.topic,
-            debaterSide: session.debaterSide,
-            transcript: session.transcript,
-            outcome: outcomeDescription(status, outcomeReason),
-          })
+    // Playtest: user message starting with `/win` forces a pass at session end
+    // (unless already hard-stopped for hate speech / yelling).
+    if (
+      !skipJudge &&
+      status !== 'abandoned' &&
+      status !== 'lost' &&
+      transcriptRequestsForceWin(session.transcript)
+    ) {
+      status = 'passed'
+      outcomeReason = 'passed'
+      logger.info('Force-win via /win in transcript', { uid, sessionId })
+    }
+
+    const diagnostic =
+      (await loadDiagnostic(uid)) ?? syntheticDiagnostic(session.topic, session.userSide)
+    let takeaways: string[]
+    if (judgeVerdict?.feedback_summary && !skipJudge) {
+      takeaways = [judgeVerdict.feedback_summary]
+    } else {
+      try {
+        takeaways = await runTakeaways({
+          topic: session.topic,
+          debaterSide: session.debaterSide,
+          transcript: session.transcript,
+          outcome: outcomeDescription(status, outcomeReason),
+        })
+      } catch (error) {
+        logger.error('Takeaways failed', error)
+        takeaways = ['Thanks for debating. Detailed feedback was unavailable this round.']
+      }
+    }
 
     const results = buildResults({
       diagnostic,
@@ -455,24 +568,80 @@ export const finalizeSession = onCall<FinalizeSessionRequest, Promise<FinalizeSe
       status === 'passed' ? 'pass' : status === 'needs_work' ? 'needs_work' : session.debateVerdict
 
     const endedAt = session.endedAt ?? Date.now()
-    await sessionRef(uid, sessionId).update({
-      status,
-      outcomeReason,
-      endedAt,
-      results,
-      ...(judgeVerdict ? { judgeVerdict } : {}),
-      ...(debateVerdict ? { debateVerdict } : {}),
-    })
-    await debateRoundRef(uid, sessionId).set(
-      {
+    const won = status === 'passed' || (status as string) === 'won'
+
+    await db.runTransaction(async (tx) => {
+      // Firestore requires all reads before any writes in a transaction.
+      const sRef = sessionRef(uid, sessionId)
+      const uRef = userRef(uid)
+      const [sSnap, uSnap] = await Promise.all([tx.get(sRef), tx.get(uRef)])
+      const existing = sSnap.data() as DebateSession | undefined
+      if (existing?.results) {
+        // Another finalize won the race; leave session + streak as-is.
+        return
+      }
+
+      tx.update(sRef, {
         status,
         outcomeReason,
         endedAt,
-      } satisfies Partial<DebateRoundRecord>,
-      { merge: true },
-    )
+        results,
+        ...(judgeVerdict ? { judgeVerdict } : {}),
+        ...(debateVerdict ? { debateVerdict } : {}),
+      })
+      tx.set(
+        debateRoundRef(uid, sessionId),
+        {
+          status,
+          outcomeReason,
+          endedAt,
+        } satisfies Partial<DebateRoundRecord>,
+        { merge: true },
+      )
 
-    logger.info('Session finalized', { uid, sessionId, status, outcomeReason })
+      const prevDebatesWon =
+        typeof uSnap.get('debatesWon') === 'number' && Number.isFinite(uSnap.get('debatesWon'))
+          ? (uSnap.get('debatesWon') as number)
+          : 0
+      const streakFields = applyStreakUpdate(
+        {
+          wins: uSnap.get('wins') as number | undefined,
+          streak: uSnap.get('streak') as number | undefined,
+          lastWinDateKey: uSnap.get('lastWinDateKey') as string | null | undefined,
+          longestStreak: uSnap.get('longestStreak') as number | undefined,
+        },
+        { won },
+      )
+      const profilePatch = {
+        wins: streakFields.wins,
+        streak: streakFields.streak,
+        lastWinDateKey: streakFields.lastWinDateKey,
+        longestStreak: streakFields.longestStreak,
+        ...(won ? { debatesWon: prevDebatesWon + 1 } : {}),
+      }
+      if (uSnap.exists) {
+        tx.update(uRef, profilePatch)
+      } else {
+        tx.set(uRef, profilePatch, { merge: true })
+      }
+    })
+
+    logger.info('Session finalized', { uid, sessionId, status, outcomeReason, won })
+
+    if (won) {
+      // Fire-and-forget learning — never block the client on sanitize/LLM.
+      const wonSession: DebateSession = {
+        ...session,
+        status,
+        outcomeReason,
+        results,
+        judgeVerdict: judgeVerdict ?? session.judgeVerdict,
+        endedAt,
+      }
+      void recordHueyWinContribution(uid, wonSession).catch((error) => {
+        logger.warn('Huey win contribution failed', error)
+      })
+    }
 
     return { status, reason: outcomeReason, results }
   },
@@ -655,6 +824,171 @@ export const reportConduct = onCall<ReportConductRequest, Promise<ReportConductR
     })
 
     return result
+  },
+)
+
+// ---------------------------------------------------------------------------
+// replyTextTurn — AI text opponent (non-live)
+// ---------------------------------------------------------------------------
+
+/**
+ * Judges the user's text turn for instant-loss conduct, appends it, generates
+ * an AI rebuttal via the debater system prompt, and returns both.
+ */
+export const replyTextTurn = onCall<ReplyTextTurnRequest, Promise<ReplyTextTurnResponse>>(
+  callOptions,
+  async (request) => {
+    const uid = requireUid(request)
+    const { sessionId, userText } = request.data ?? {}
+
+    const session = await loadSession(uid, sessionId)
+    if (session.status !== 'active') {
+      return {
+        ...terminalResponse(session, 0),
+        aiText: null,
+        exchangeCount: session.exchangeCount ?? 0,
+      }
+    }
+
+    const now = Date.now()
+    const deadline = deadlineFor(session)
+    const cleanUser = sanitizeSpeech(userText)
+
+    if (!cleanUser) {
+      throw new HttpsError('invalid-argument', 'userText is required.')
+    }
+
+    const wordCount = cleanUser.split(/\s+/).filter(Boolean).length
+    if (wordCount > 20) {
+      throw new HttpsError(
+        'invalid-argument',
+        `Messages are limited to 20 words (got ${wordCount}).`,
+      )
+    }
+
+    if (now > deadline + LATE_TURN_GRACE_MS) {
+      await endSession(uid, sessionId, 'lost', 'timeout', [
+        { speaker: 'user', text: cleanUser, ts: now },
+      ])
+      return {
+        outcome: 'lost',
+        reason: 'timeout',
+        remainingMs: 0,
+        aiText: null,
+        exchangeCount: session.exchangeCount ?? 0,
+      }
+    }
+
+    const nextExchange = (session.exchangeCount ?? 0) + 1
+    let eventLog = session.eventLog ?? []
+
+    if (looksLikePromptInjection(cleanUser)) {
+      eventLog = appendEventLog(eventLog, {
+        turn: nextExchange,
+        type: 'gaming_attempt',
+        source: 'event_log',
+        detail: 'prompt injection pattern',
+      })
+    }
+
+    const instant = detectInstantLossSpeech(cleanUser)
+    if (instant) {
+      eventLog = appendEventLog(eventLog, {
+        turn: nextExchange,
+        type: instant === 'hate_speech' ? 'hate_speech' : 'toxicity',
+        source: 'event_log',
+        detail: 'server transcript match',
+      })
+      await endSession(
+        uid,
+        sessionId,
+        'lost',
+        instant,
+        [{ speaker: 'user', text: cleanUser, ts: now }],
+        eventLog,
+      )
+      return {
+        outcome: 'lost',
+        reason: instant,
+        remainingMs: 0,
+        aiText: null,
+        exchangeCount: nextExchange,
+      }
+    }
+
+    const eventDecision = decideOutcomeFromEvents(eventLog)
+    if (eventDecision.outcome !== 'continue') {
+      await endSession(
+        uid,
+        sessionId,
+        eventDecision.outcome,
+        eventDecision.reason ?? 'incivility',
+        [{ speaker: 'user', text: cleanUser, ts: now }],
+        eventLog,
+      )
+      return {
+        outcome: eventDecision.outcome,
+        reason: eventDecision.reason,
+        remainingMs: Math.max(0, deadline - Date.now()),
+        aiText: null,
+        exchangeCount: nextExchange,
+      }
+    }
+
+    let aiText = ''
+    try {
+      const huey = await loadHueyDailyContext()
+      aiText = await runTextDebaterReply({
+        topic: session.topic,
+        debaterSide: session.debaterSide,
+        transcript: [
+          ...(session.transcript ?? []),
+          { speaker: 'user', text: cleanUser, ts: now },
+        ],
+        hueyDailyContext: huey.context,
+      })
+    } catch (error) {
+      logger.error('Text debater reply failed', error)
+      throw new HttpsError('internal', 'Could not generate a reply. Try again.')
+    }
+
+    const cleanAi = sanitizeSpeech(aiText)
+    const additions: TranscriptEntry[] = [
+      { speaker: 'user', text: cleanUser, ts: now },
+    ]
+    if (cleanAi) {
+      additions.push({ speaker: 'ai', text: cleanAi, ts: Date.now() })
+    }
+
+    await db.runTransaction(async (tx) => {
+      const ref = sessionRef(uid, sessionId)
+      const snapshot = await tx.get(ref)
+      const current = snapshot.data() as DebateSession | undefined
+      if (!current || current.status !== 'active') {
+        return
+      }
+      const transcript = mergeAndPersistTranscript(
+        tx,
+        ref,
+        current.transcript ?? [],
+        additions,
+      )
+      tx.update(ref, {
+        transcript,
+        exchangeCount: nextExchange,
+        eventLog,
+        conductEvents: penaltyCountFromLog(eventLog),
+        conductPenaltyPoints: penaltyCountFromLog(eventLog),
+      })
+    })
+
+    return {
+      outcome: 'continue',
+      reason: null,
+      remainingMs: Math.max(0, deadline - Date.now()),
+      aiText: cleanAi || null,
+      exchangeCount: nextExchange,
+    }
   },
 )
 

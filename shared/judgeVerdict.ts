@@ -1,8 +1,8 @@
 import { CONDUCT_EVENTS_NEEDS_WORK } from './conduct'
 import type { JudgeSessionVerdict, SessionOutcomeReason, SessionStatus } from './types'
 
-export const PASS_RESPECT_THRESHOLD = 70
-export const PASS_QUALITY_THRESHOLD = 70
+export const PASS_RESPECT_THRESHOLD = 50
+export const PASS_QUALITY_THRESHOLD = 50
 
 export function normalizeJudgeVerdict(raw: unknown): JudgeSessionVerdict {
   const data = (raw ?? {}) as Record<string, unknown>
@@ -97,6 +97,21 @@ export function computePassFail(
     return 'pass'
   }
   return 'needs_work'
+}
+
+/**
+ * Debug / playtest: any user turn that starts with `/win` forces a pass at
+ * finalize (unless the session already hard-stopped for hate/yelling).
+ */
+export function transcriptRequestsForceWin(
+  transcript: { speaker: string; text: string }[] | undefined,
+): boolean {
+  if (!transcript?.length) return false
+  return transcript.some((entry) => {
+    if (entry.speaker !== 'user') return false
+    const t = entry.text.trim().toLowerCase()
+    return t === '/win' || t.startsWith('/win ') || t.startsWith('/win\n')
+  })
 }
 
 export function statusFromJudgeVerdict(verdict: JudgeSessionVerdict): {

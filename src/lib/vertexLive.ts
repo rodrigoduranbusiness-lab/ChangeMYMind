@@ -136,6 +136,11 @@ export class VertexLiveSession {
     )
   }
 
+  /** Vertex Live has no client cancel frame — local interrupt is enough. */
+  cancelResponse(): void {
+    /* no-op */
+  }
+
   async *receive(): AsyncGenerator<Record<string, unknown>> {
     while (!this.isClosed) {
       if (this.receiveQueue.length > 0) {

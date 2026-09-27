@@ -112,6 +112,17 @@ describe('users/{uid}', () => {
     await assertFails(updateDoc(doc(aliceDb(), 'users', ALICE), { isAdmin: true }))
   })
 
+  it('stops a user forging wins or streak on their profile', async () => {
+    await assertFails(updateDoc(doc(aliceDb(), 'users', ALICE), { wins: 99 }))
+    await assertFails(updateDoc(doc(aliceDb(), 'users', ALICE), { streak: 99 }))
+    await assertFails(updateDoc(doc(aliceDb(), 'users', ALICE), { longestStreak: 99 }))
+    await assertFails(updateDoc(doc(aliceDb(), 'users', ALICE), { debatesWon: 99 }))
+    await assertFails(updateDoc(doc(aliceDb(), 'users', ALICE), { debateRoundCount: 99 }))
+    await assertFails(
+      updateDoc(doc(aliceDb(), 'users', ALICE), { lastWinDateKey: '2099-01-01' }),
+    )
+  })
+
   it('stops a user deleting their profile', async () => {
     await assertFails(deleteDoc(doc(aliceDb(), 'users', ALICE)))
   })
@@ -190,5 +201,35 @@ describe('everything else', () => {
   it('denies reads and writes outside the user tree', async () => {
     await assertFails(getDoc(doc(aliceDb(), 'config', 'prompts')))
     await assertFails(setDoc(doc(aliceDb(), 'leaderboard', ALICE), { score: 100 }))
+  })
+})
+
+describe('hueyDays/{dateKey}', () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'hueyDays', '2026-09-26'), {
+        topicId: 'taylor_swift',
+        updatedAt: Date.now(),
+        contributions: [],
+      })
+    })
+  })
+
+  it('lets signed-in users read Huey day docs', async () => {
+    await assertSucceeds(getDoc(doc(aliceDb(), 'hueyDays', '2026-09-26')))
+  })
+
+  it('blocks client writes to Huey day docs', async () => {
+    await assertFails(
+      setDoc(doc(aliceDb(), 'hueyDays', '2026-09-26'), {
+        topicId: 'taylor_swift',
+        updatedAt: Date.now(),
+        contributions: [{ summary: 'forged' }],
+      }),
+    )
+  })
+
+  it('blocks anonymous reads', async () => {
+    await assertFails(getDoc(doc(anonDb(), 'hueyDays', '2026-09-26')))
   })
 })

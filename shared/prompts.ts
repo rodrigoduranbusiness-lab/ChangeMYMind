@@ -1,5 +1,6 @@
 import { debateTimeLimitMinutes } from './debateConfig'
 import { formatFactBankForPrompt, getTopicFactBankJson } from './factBank'
+import { EMPTY_HUEY_CONTEXT } from './huey'
 import { getTopic, oppositeSide, sideLabel } from './topics'
 import type { Side, TopicId } from './types'
 
@@ -37,9 +38,9 @@ export function debateContext(topicId: TopicId, debaterSide: Side): Record<strin
   return {
     TOPIC_LABEL: topic.label,
     TOPIC_QUESTION: topic.question,
-    DEBATER_SIDE: sideLabel(debaterSide),
+    DEBATER_SIDE: sideLabel(debaterSide, topic),
     DEBATER_POSITION: topic.positions[debaterSide],
-    USER_SIDE: sideLabel(userSide),
+    USER_SIDE: sideLabel(userSide, topic),
     USER_POSITION: topic.positions[userSide],
     FACT_BANK: formatFactBankForPrompt(topicId),
     TOPIC_FACT_BANK: getTopicFactBankJson(topicId),
@@ -47,16 +48,23 @@ export function debateContext(topicId: TopicId, debaterSide: Side): Record<strin
   }
 }
 
-/** Live voice opponent — no user diagnostic in the prompt. */
-export function renderOpponentPrompt(raw: string, topicId: TopicId, debaterSide: Side): string {
+/** Live voice / text opponent (Huey) — no user diagnostic in the prompt. */
+export function renderOpponentPrompt(
+  raw: string,
+  topicId: TopicId,
+  debaterSide: Side,
+  hueyDailyContext: string = EMPTY_HUEY_CONTEXT,
+): string {
   const topic = getTopic(topicId)
+  const context = hueyDailyContext.trim() || EMPTY_HUEY_CONTEXT
   return fillPlaceholders(stripPromptPreamble(raw), {
     TOPIC_LABEL: topic.label,
     TOPIC_QUESTION: topic.question,
-    YOUR_SIDE: sideLabel(debaterSide),
+    YOUR_SIDE: sideLabel(debaterSide, topic),
     YOUR_POSITION: topic.positions[debaterSide],
     TOPIC_FACT_BANK: getTopicFactBankJson(topicId),
     TIME_LIMIT_MINUTES: String(debateTimeLimitMinutes()),
+    HUEY_DAILY_CONTEXT: context.slice(0, 4000),
   })
 }
 

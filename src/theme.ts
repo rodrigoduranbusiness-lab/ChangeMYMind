@@ -40,7 +40,7 @@ export const font = {
 
 /**
  * Film grain over the whole viewport via body::before / theme token.
- * Higher baseFrequency = finer grit. Screen blend keeps it visible on black.
+ * Dense grit, strong screen blend — matches body::before in index.css.
  */
 export const grain: CSSProperties = {
   position: 'fixed',
@@ -48,9 +48,9 @@ export const grain: CSSProperties = {
   zIndex: 9999,
   pointerEvents: 'none',
   mixBlendMode: 'screen',
-  opacity: 0.14,
+  opacity: 0.34,
   backgroundImage:
-    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.35' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='128' height='128' filter='url(%23g)'/%3E%3C/svg%3E\")",
+    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.55' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)'/%3E%3C/svg%3E\")",
   backgroundRepeat: 'repeat',
 }
 
@@ -65,7 +65,8 @@ export const page: CSSProperties = {
   paddingLeft: `max(${24}px, env(safe-area-inset-left))`,
   paddingRight: `max(${24}px, env(safe-area-inset-right))`,
   boxSizing: 'border-box',
-  background: color.bg,
+  // Transparent so ColorBlobs show through; body stays black for sign-in.
+  background: 'transparent',
   color: color.text,
 }
 
@@ -144,7 +145,7 @@ export const buttonBase: CSSProperties = {
   padding: '12px 20px',
   fontSize: 17,
   fontFamily: font.serif,
-  borderRadius: 0,
+  borderRadius: 8,
   border: `1px solid ${color.text}`,
   cursor: 'pointer',
   transition: 'opacity 120ms ease',
@@ -154,6 +155,7 @@ export const buttonPrimary: CSSProperties = {
   ...buttonBase,
   background: color.text,
   color: color.accentText,
+  border: 'none',
 }
 
 export const buttonSecondary: CSSProperties = {
@@ -161,6 +163,31 @@ export const buttonSecondary: CSSProperties = {
   background: 'transparent',
   color: color.text,
   borderColor: color.borderStrong,
+}
+
+/**
+ * Sit above the permanent body film-grain overlay (z-index 9998).
+ * Blur softens any grain still visible at the edges; pair with
+ * {@link tintedFill} so semi-transparent color does not speck through.
+ */
+export const aboveGrain: CSSProperties = {
+  position: 'relative',
+  zIndex: 9999,
+  isolation: 'isolate',
+  backdropFilter: 'blur(16px) saturate(1.1)',
+  WebkitBackdropFilter: 'blur(16px) saturate(1.1)',
+}
+
+/**
+ * Colored fill that stays clean over film grain: opaque black base + tint
+ * wash, so transparency never reveals the grit underneath.
+ */
+export function tintedFill(tint: string): CSSProperties {
+  return {
+    ...aboveGrain,
+    backgroundColor: '#0c0c0c',
+    backgroundImage: `linear-gradient(${tint}, ${tint})`,
+  }
 }
 
 export function disabled(style: CSSProperties, isDisabled: boolean): CSSProperties {

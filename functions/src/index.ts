@@ -16,6 +16,7 @@ export {
   abandonSession,
   finalizeSession,
   reportPause,
+  replyTextTurn,
   startSession,
   submitTurn,
   syncTranscript,
@@ -25,3 +26,10 @@ export { deleteAccount } from './accounts'
 
 export { mintLiveAccess } from './live'
 export { reportConduct } from './sessions'
+
+export {
+  heartbeatTextLobby,
+  joinTextLobby,
+  leaveTextLobby,
+  sendTextMessage,
+} from './textLobby'

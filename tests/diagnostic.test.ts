@@ -7,7 +7,7 @@ import {
   scoreDiagnostic,
   shuffleQuestionOrder,
 } from '../shared/diagnostic'
-import { TOPIC_IDS } from '../shared/topics'
+import { DIAGNOSTIC_TOPIC_IDS } from '../shared/topics'
 import type { DiagnosticAnswer, TopicId } from '../shared/types'
 
 /** Answers every question with the same value. */
@@ -24,7 +24,7 @@ function answersFor(overrides: Record<string, number>, fallback = 3): Diagnostic
 
 describe('question set', () => {
   it('has paired topic questions except abortion and economy (one each)', () => {
-    for (const topic of TOPIC_IDS) {
+    for (const topic of DIAGNOSTIC_TOPIC_IDS) {
       const questions = DIAGNOSTIC_QUESTIONS.filter(
         (q) => q.kind === 'topic' && q.topic === topic,
       )
@@ -89,7 +89,7 @@ describe('scoreDiagnostic', () => {
       }),
     )
 
-    for (const topic of TOPIC_IDS) {
+    for (const topic of DIAGNOSTIC_TOPIC_IDS) {
       expect(result.topicLeans[topic]).toBe(1)
       expect(result.topicExtremity[topic]).toBe(1)
     }
@@ -109,7 +109,7 @@ describe('scoreDiagnostic', () => {
       }),
     )
 
-    for (const topic of TOPIC_IDS) {
+    for (const topic of DIAGNOSTIC_TOPIC_IDS) {
       expect(result.topicLeans[topic]).toBe(-1)
       expect(result.topicExtremity[topic]).toBe(1)
     }
@@ -176,6 +176,6 @@ describe('pickAssignedTopic', () => {
   })
 
   it('still returns a topic when every extremity is zero', () => {
-    expect(TOPIC_IDS).toContain(pickAssignedTopic(extremity({}), () => 0.5))
+    expect(DIAGNOSTIC_TOPIC_IDS).toContain(pickAssignedTopic(extremity({}), () => 0.5))
   })
 })

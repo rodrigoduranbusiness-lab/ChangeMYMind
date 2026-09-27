@@ -379,6 +379,158 @@
           "url": "https://www.pewresearch.org/internet/2025/04/03/how-the-us-public-and-ai-experts-view-artificial-intelligence/"
         }
       }
+
+    },
+    "taylor_swift": {
+      "neutral_framing": "The debate is whether Taylor Swift's craft, commercial dominance, and cultural reach are a net positive or net negative for music as an art form and industry.",
+      "facts": [
+        {
+          "id": "ts1",
+          "claim": "Taylor Swift has won 14 Grammy Awards, including four Album of the Year wins — the most of any artist.",
+          "source": "Recording Academy / Grammy records",
+          "cited_by": "left"
+        },
+        {
+          "id": "ts2",
+          "claim": "The Eras Tour (2023–2024) became the highest-grossing concert tour on record, with reported revenue above $2 billion.",
+          "source": "Pollstar / Billboard tour reports",
+          "cited_by": "left"
+        },
+        {
+          "id": "ts3",
+          "claim": "Her catalog spans country, pop, indie-folk, and synth-pop, with multiple albums that topped charts years after release via re-recordings.",
+          "source": "Billboard chart history",
+          "cited_by": "left"
+        },
+        {
+          "id": "ts4",
+          "claim": "Critics and some musicians argue stadium-pop formula and media saturation can crowd out emerging artists on playlists and award stages.",
+          "source": "Music press commentary (composite)",
+          "cited_by": "right"
+        },
+        {
+          "id": "ts5",
+          "claim": "Streaming and sales data show she repeatedly drove industry-wide consumption spikes on release weeks.",
+          "source": "Luminate / Billboard consumption reports",
+          "cited_by": "left"
+        },
+        {
+          "id": "ts6",
+          "claim": "Songwriting credits list her as a primary writer on the large majority of her released songs across eras.",
+          "source": "ASCAP / album liner credits",
+          "cited_by": "left"
+        },
+        {
+          "id": "ts7",
+          "claim": "Re-recording campaigns (Taylor's Versions) shifted leverage in catalog ownership debates and inspired other artists to revisit contracts.",
+          "source": "Music business press (composite)",
+          "cited_by": "neutral"
+        },
+        {
+          "id": "ts8",
+          "claim": "Some listeners and critics say overexposure and fan-army dynamics punish dissent and flatten critical conversation about the work.",
+          "source": "Cultural criticism (composite)",
+          "cited_by": "right"
+        }
+      ],
+      "resources": {
+        "left_1": {
+          "title": "Recording Academy — Grammy Awards artist history",
+          "url": "https://www.grammy.com/"
+        },
+        "left_2": {
+          "title": "Billboard — chart and tour coverage",
+          "url": "https://www.billboard.com/"
+        },
+        "right_1": {
+          "title": "Pitchfork — critical coverage of mainstream pop",
+          "url": "https://pitchfork.com/"
+        },
+        "right_2": {
+          "title": "The New Yorker — essays on celebrity and pop culture",
+          "url": "https://www.newyorker.com/"
+        },
+        "neutral": {
+          "title": "Luminate — music industry consumption data",
+          "url": "https://luminatedata.com/"
+        }
+      }
+    },
+    "ai_humanity": {
+      "neutral_framing": "The debate is whether artificial intelligence, on balance, benefits humanity — weighing productivity and scientific gains against misuse, displacement, energy cost, and concentrated power.",
+      "facts": [
+        {
+          "id": "ah1",
+          "claim": "Generative AI tools are already used in medicine, education, and science for drafting, summarization, and pattern detection at scale.",
+          "source": "Industry and academic adoption surveys (2024–2025)",
+          "cited_by": "left"
+        },
+        {
+          "id": "ah2",
+          "claim": "Pew finds U.S. adults more often worry that AI regulation will not go far enough than that it will go too far.",
+          "source": "Pew Research Center, 2025",
+          "cited_by": "right"
+        },
+        {
+          "id": "ah3",
+          "claim": "Productivity studies report mixed but often positive gains for writing and coding tasks when AI assists rather than replaces judgment.",
+          "source": "Academic / firm-level productivity papers (2023–2025)",
+          "cited_by": "left"
+        },
+        {
+          "id": "ah4",
+          "claim": "Documented harms include deepfakes, scam automation, biased decision systems, and concentrated compute power among a few firms.",
+          "source": "Policy and civil-society reports (composite)",
+          "cited_by": "right"
+        },
+        {
+          "id": "ah5",
+          "claim": "Energy use for training and serving large models is rising; estimates vary widely by model size and utilization.",
+          "source": "IEA / academic energy analyses",
+          "cited_by": "right"
+        },
+        {
+          "id": "ah6",
+          "claim": "AI experts surveyed by Pew are more optimistic than the general public about net effects on jobs and daily life.",
+          "source": "Pew Research Center, Apr 2025",
+          "cited_by": "left"
+        },
+        {
+          "id": "ah7",
+          "claim": "62% of U.S. adults say they have not too much or no confidence that the U.S. government can regulate AI effectively.",
+          "source": "Pew Research Center, Apr 2025",
+          "cited_by": "neutral"
+        },
+        {
+          "id": "ah8",
+          "claim": "NIST’s AI Risk Management Framework is voluntary U.S. guidance — not a binding licensing regime for frontier models.",
+          "source": "NIST AI RMF 1.0",
+          "cited_by": "neutral"
+        }
+      ],
+      "resources": {
+        "left_1": {
+          "title": "Stanford HAI — AI Index and research on beneficial AI",
+          "url": "https://hai.stanford.edu/"
+        },
+        "left_2": {
+          "title": "WHO — guidance on AI for health",
+          "url": "https://www.who.int/health-topics/artificial-intelligence"
+        },
+        "right_1": {
+          "title": "Center for AI Safety — catastrophic and systemic AI risks",
+          "url": "https://www.safe.ai/"
+        },
+        "right_2": {
+          "title": "Electronic Privacy Information Center — AI harms advocacy",
+          "url": "https://epic.org/issues/ai/"
+        },
+        "neutral": {
+          "title": "Pew Research Center — public and expert views on AI",
+          "url": "https://www.pewresearch.org/internet/2025/04/03/how-the-us-public-and-ai-experts-view-artificial-intelligence/"
+        }
+      }
     }
+
   }
 }

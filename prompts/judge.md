@@ -73,5 +73,7 @@ OUTPUT — JSON only, no other text
   "topics_for_resource_screen": ["fact_id", "fact_id"]
 }
 
-PASS: `result` = "pass" only if respect_score >= 70 AND argument_quality_score >= 70
-AND penalty_events has fewer than 3 entries. Otherwise "needs_work".
+PASS: `result` = "pass" if respect_score >= 50 AND argument_quality_score >= 50
+AND penalty_events has fewer than 3 entries. Lean toward giving credit for
+good-faith effort — pass should feel achievable in a normal civil debate.
+Otherwise "needs_work".

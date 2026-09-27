@@ -1,4 +1,4 @@
-import { TOPIC_IDS } from './topics'
+import { DIAGNOSTIC_TOPIC_IDS } from './topics'
 import type { DiagnosticAnswer, DiagnosticResult, TopicId } from './types'
 
 /**
@@ -158,7 +158,7 @@ export function scoreDiagnostic(
   const topicLeans = {} as Record<TopicId, number>
   const topicExtremity = {} as Record<TopicId, number>
 
-  for (const topic of TOPIC_IDS) {
+  for (const topic of DIAGNOSTIC_TOPIC_IDS) {
     const questions = DIAGNOSTIC_QUESTIONS.filter(
       (q) => q.kind === 'topic' && q.topic === topic,
     )
@@ -206,12 +206,12 @@ export function pickAssignedTopic(
   tieBreak: () => number = Math.random,
 ): TopicId {
   let best = -1
-  for (const topic of TOPIC_IDS) {
+  for (const topic of DIAGNOSTIC_TOPIC_IDS) {
     best = Math.max(best, topicExtremity[topic] ?? 0)
   }
 
   const NEAR_TIE = 0.12
-  const contenders = TOPIC_IDS.filter(
+  const contenders = DIAGNOSTIC_TOPIC_IDS.filter(
     (topic) => best - (topicExtremity[topic] ?? 0) <= NEAR_TIE + 1e-9,
   )
 

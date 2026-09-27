@@ -3,14 +3,225 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="dark only" />
+    <style>
+      /* Paint black before any CSS/JS so navigations never flash white. */
+      html,
+      body,
+      #root {
+        background: #000000;
+        color: #ffffff;
+        margin: 0;
+        min-height: 100%;
+      }
+      html {
+        color-scheme: dark only;
+        background-color: #000000;
+      }
+    </style>
+    <title>Change My Mind — daily debate game</title>
     <meta
       name="description"
-      content="Take a twelve-question diagnostic, then debate an AI that argues the opposite of what you believe."
+      content="Change My Mind is a daily debate game. One topic a day. Argue by voice or text for three minutes. Win with a good take. Huey is the opponent."
     />
-    <meta name="theme-color" content="#000000" />
-    <title>Change My Mind</title>
+    <meta
+      name="keywords"
+      content="change my mind, change my mind game, changemymind, changemymind.tech, ChangeMyMind, daily debate, daily debate game, civil debate, civil discourse, debate game, voice debate, text debate, argue the other side, debate the other side, huey, political debate, debate streak, win a debate, fact checked debate, daily topic, three minute debate"
+    />
+    <meta name="author" content="4FRN Education LLC" />
+    <meta name="publisher" content="Change My Mind" />
+    <meta name="application-name" content="Change My Mind" />
+    <meta name="generator" content="Change My Mind" />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
+    <meta
+      name="googlebot"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
+    <meta
+      name="bingbot"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
+    <meta name="rating" content="general" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="apple-mobile-web-app-title" content="Change My Mind" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="canonical" href="https://changemymind.tech/" />
+    <link rel="alternate" hreflang="en" href="https://changemymind.tech/" />
+    <link rel="alternate" hreflang="x-default" href="https://changemymind.tech/" />
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Change My Mind" />
+    <meta property="og:title" content="Change My Mind — daily debate game" />
+    <meta
+      property="og:description"
+      content="Change My Mind is the daily debate game. One topic every day. Pick a side and argue it by voice or text for three minutes. A judge scores the take. Disrespect loses. Win, and your voice starts to shape that side. Huey is the opponent you face."
+    />
+    <meta property="og:url" content="https://changemymind.tech/" />
+    <meta property="og:image" content="https://changemymind.tech/og.png" />
+    <meta property="og:image:secure_url" content="https://changemymind.tech/og.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Change My Mind, a daily debate. One topic. Voice or text." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Change My Mind — daily debate game" />
+    <meta
+      name="twitter:description"
+      content="Change My Mind is the daily debate game. One topic every day. Argue by voice or text for three minutes. Win with a good take. Huey is the opponent."
+    />
+    <meta name="twitter:image" content="https://changemymind.tech/og.png" />
+    <meta name="twitter:image:alt" content="Change My Mind, a daily debate. One topic. Voice or text." />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://changemymind.tech/#organization",
+            "name": "Change My Mind",
+            "legalName": "4FRN Education LLC",
+            "alternateName": [
+              "ChangeMyMind",
+              "ChangeMyMind.tech",
+              "changemymind.tech",
+              "Change My Mind game",
+              "Common Ground"
+            ],
+            "url": "https://changemymind.tech/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://changemymind.tech/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://changemymind.tech/#website",
+            "url": "https://changemymind.tech/",
+            "name": "Change My Mind",
+            "alternateName": [
+              "Change My Mind game",
+              "ChangeMyMind",
+              "changemymind.tech",
+              "daily debate game"
+            ],
+            "description": "Change My Mind is a daily debate game. One topic a day. Argue the other side by voice or text. Huey is the opponent.",
+            "inLanguage": "en-US",
+            "publisher": { "@id": "https://changemymind.tech/#organization" }
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "https://changemymind.tech/#app",
+            "name": "Change My Mind",
+            "alternateName": ["ChangeMyMind", "changemymind.tech", "Change My Mind daily debate"],
+            "url": "https://changemymind.tech/",
+            "applicationCategory": "GameApplication",
+            "operatingSystem": "Web",
+            "browserRequirements": "Requires JavaScript. Works in current Chrome, Safari, Firefox, and Edge.",
+            "inLanguage": "en-US",
+            "isAccessibleForFree": true,
+            "description": "A daily debate game. Every day there is one topic. You pick a side and argue it out loud or in text for three minutes. One judge decides the winner. A good take wins. Pushing the other person down, or being disrespectful, loses. If you win, your take can shape how that side talks the next time. Huey is the opponent: the fact-checked takes of people on the other side that day. Huey is one part of Change My Mind, not the whole game. Come back tomorrow and keep the streak.",
+            "featureList": [
+              "One debate topic every day",
+              "Voice debate or text debate",
+              "Three minutes",
+              "A judge scores the argument",
+              "Disrespect loses",
+              "Winning takes can shape that side",
+              "Daily streak",
+              "Huey, the opponent made of the other side's takes"
+            ],
+            "publisher": { "@id": "https://changemymind.tech/#organization" },
+            "image": "https://changemymind.tech/og.png",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD",
+              "availability": "https://schema.org/InStock"
+            }
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://changemymind.tech/#faq",
+            "url": "https://changemymind.tech/",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "What is Change My Mind?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Change My Mind is a daily debate game at changemymind.tech. Every day there is one topic. You argue a side by voice or by text."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How does Change My Mind work?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "You get one topic for the day, pick the side you will argue, then choose voice or text. You have three minutes. A judge scores how you argued. There is one winner and one loser."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Who is Huey?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Huey is the opponent inside Change My Mind, not the name of the game. Huey is made of the fact-checked takes from people on the other side that day. When you speak, you are arguing with Huey."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How do you win Change My Mind?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "You win with a good take, not by pushing the other person down. If you are disrespectful, you lose. A win can shape how that side talks after you."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can I debate by voice or by text?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Change My Mind lets you argue out loud or type. Text tries to match you with a person on the other side. If no one is there, you debate Huey."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is Change My Mind a daily game?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. There is one topic each day. You can come back tomorrow to keep a streak, and to win again."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
+    <noscript>
+      <h1>Change My Mind</h1>
+      <p>
+        Change My Mind is a daily debate game. One topic every day. Pick a side, then argue it by
+        voice or by text for three minutes. A judge scores the take. A good argument wins.
+        Disrespect loses. Huey is the opponent you face, made from the other side’s takes that day.
+        Huey is one part of the game. The game is Change My Mind, at changemymind.tech.
+      </p>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

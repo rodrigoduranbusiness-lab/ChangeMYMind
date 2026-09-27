@@ -3,6 +3,7 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import type { CallableRequest } from 'firebase-functions/v2/https'
 
 import { GCP_PROJECT, VERTEX_LOCATION } from '../config'
+import { loadHueyDailyContext } from '../huey'
 import type { LiveAccessResponse } from './types'
 
 const LIVE_MODEL = process.env.LIVE_MODEL ?? 'gemini-live-2.5-flash-native-audio'
@@ -34,6 +35,8 @@ export async function mintVertexLiveAccess(
   const model =
     `projects/${GCP_PROJECT}/locations/${location}/publishers/google/models/${LIVE_MODEL}`
 
+  const huey = await loadHueyDailyContext()
+
   return {
     provider: 'vertex',
     accessToken,
@@ -41,5 +44,6 @@ export async function mintVertexLiveAccess(
     wsUrl,
     model,
     location,
+    hueyDailyContext: huey.context,
   }
 }
