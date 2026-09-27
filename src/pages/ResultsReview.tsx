@@ -372,13 +372,6 @@ export default function ResultsReview() {
           >
             Today’s debate
           </button>
-          <button
-            type="button"
-            onClick={() => navigate('/diagnostic')}
-            style={{ ...s.buttonSecondary, flex: '1 1 140px', minHeight: 48 }}
-          >
-            Diagnostic (optional)
-          </button>
         </div>
         <p style={{ ...s.subheading, fontSize: 13, marginTop: 12, marginBottom: 0 }}>
           Come back tomorrow for a new topic — or debate again with today’s question.
