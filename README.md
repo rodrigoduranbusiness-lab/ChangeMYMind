@@ -40,6 +40,9 @@ Both are overridable — `VITE_LIVE_MODEL` and the `JUDGE_MODEL` env var on the
 function. For Gemini 2.5 native audio instead, set `VITE_LIVE_MODEL` to
 `gemini-2.5-flash-native-audio-preview-12-2025`.
 
+To switch judge, takeaways, and live voice to **xAI Grok**, see [docs/GROK.md](docs/GROK.md)
+(`AI_PROVIDER=grok`, `XAI_API_KEY` in Functions).
+
 ### No API key reaches the browser
 
 The web client talks to the Live API through **Firebase AI Logic**, which

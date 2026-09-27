@@ -1,6 +1,7 @@
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 
+import type { AiProvider } from '@shared/aiProvider'
 import type {
   DebateSession,
   DiagnosticResult,
@@ -10,6 +11,8 @@ import type {
   SessionOutcomeReason,
   StartSessionResponse,
   SubmitTurnResponse,
+  SyncTranscriptResponse,
+  TranscriptEntry,
   UserProfile,
 } from '@shared/types'
 import { abandonBeaconUrl, auth, db, functions } from '../firebase'
@@ -25,9 +28,14 @@ const callSubmitTurn = httpsCallable<
 >(functions, 'submitTurn')
 
 const callFinalizeSession = httpsCallable<
-  { sessionId: string; reason?: SessionOutcomeReason },
+  { sessionId: string; reason?: SessionOutcomeReason; transcript?: TranscriptEntry[] },
   FinalizeSessionResponse
 >(functions, 'finalizeSession')
+
+const callSyncTranscript = httpsCallable<
+  { sessionId: string; entries: TranscriptEntry[] },
+  SyncTranscriptResponse
+>(functions, 'syncTranscript')
 
 const callReportPause = httpsCallable<{ sessionId: string; pausedMs: number }, { deadline: number }>(
   functions,
@@ -56,9 +64,18 @@ export async function submitTurn(
 export async function finalizeSession(
   sessionId: string,
   reason?: SessionOutcomeReason,
+  transcript?: TranscriptEntry[],
 ): Promise<FinalizeSessionResponse> {
-  const result = await callFinalizeSession({ sessionId, reason })
+  const result = await callFinalizeSession({ sessionId, reason, transcript })
   return result.data
+}
+
+export async function syncTranscript(
+  sessionId: string,
+  entries: TranscriptEntry[],
+): Promise<number> {
+  const result = await callSyncTranscript({ sessionId, entries })
+  return result.data.length
 }
 
 export async function reportPause(sessionId: string, pausedMs: number): Promise<number> {
@@ -76,6 +93,7 @@ export async function reportConduct(
 }
 
 export interface LiveAccessCredentials {
+  provider: AiProvider
   accessToken: string
   expiresAt: number
   wsUrl: string
@@ -129,7 +147,11 @@ export async function ensureUserProfile(uid: string, phone: string | null): Prom
   const snapshot = await getDoc(ref)
 
   if (!snapshot.exists()) {
-    await setDoc(ref, { phone, createdAt: Date.now(), updatedAt: serverTimestamp() })
+    await setDoc(ref, {
+      phone,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
     return { phone, createdAt: Date.now() }
   }
 
@@ -164,9 +186,15 @@ export async function getSession(uid: string, sessionId: string): Promise<Debate
  * moment of unload.
  */
 let cachedIdToken: string | null = null
+let cachedTranscriptForUnload: TranscriptEntry[] = []
 
 export async function cacheIdToken(): Promise<void> {
   cachedIdToken = (await auth.currentUser?.getIdToken()) ?? null
+}
+
+/** Latest in-memory transcript for tab-close beacon (best-effort). */
+export function cacheTranscriptForUnload(entries: TranscriptEntry[]): void {
+  cachedTranscriptForUnload = entries
 }
 
 /**
@@ -177,7 +205,11 @@ export async function cacheIdToken(): Promise<void> {
 export function abandonSessionOnUnload(sessionId: string): void {
   if (!cachedIdToken) return
 
-  const payload = JSON.stringify({ idToken: cachedIdToken, sessionId })
+  const payload = JSON.stringify({
+    idToken: cachedIdToken,
+    sessionId,
+    transcript: cachedTranscriptForUnload,
+  })
   navigator.sendBeacon(
     abandonBeaconUrl(),
     new Blob([payload], { type: 'text/plain;charset=UTF-8' }),

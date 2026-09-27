@@ -35,6 +35,9 @@ export const functions = getFunctions(app)
 /** Voice name for Vertex Live speechConfig. */
 export const LIVE_VOICE = import.meta.env.VITE_LIVE_VOICE ?? 'Charon'
 
+/** Grok Voice preset when AI_PROVIDER=grok (server must match). */
+export const GROK_VOICE = import.meta.env.VITE_GROK_VOICE ?? 'eve'
+
 export const usingEmulators = import.meta.env.VITE_USE_EMULATORS === 'true'
 
 if (usingEmulators) {

@@ -35,6 +35,16 @@ service cloud.firestore {
       match /sessions/{sessionId} {
         allow get, list: if isOwner(uid);
         allow create, update, delete: if false;
+
+        match /transcript/{lineId} {
+          allow get, list: if isOwner(uid);
+          allow create, update, delete: if false;
+        }
+      }
+
+      match /debateRounds/{sessionId} {
+        allow get, list: if isOwner(uid);
+        allow create, update, delete: if false;
       }
     }
 

@@ -33,7 +33,20 @@ export const deleteAccount = onCall({ region: REGION }, async (request) => {
     ops = 0
   }
 
+  const roundDocs = await user.collection('debateRounds').listDocuments()
+  for (const roundDoc of roundDocs) {
+    batch.delete(roundDoc)
+    ops += 1
+    if (ops >= 450) await flush()
+  }
+
   for (const sessionDoc of sessions) {
+    const lines = await sessionDoc.collection('transcript').listDocuments()
+    for (const lineDoc of lines) {
+      batch.delete(lineDoc)
+      ops += 1
+      if (ops >= 450) await flush()
+    }
     batch.delete(sessionDoc)
     ops += 1
     if (ops >= 450) await flush()

@@ -9,6 +9,7 @@ import {
 } from '@shared/diagnostic'
 import type { DiagnosticAnswer } from '@shared/types'
 import { useAuth } from '../auth/context'
+import OnboardingTopBrand from '../components/OnboardingTopBrand'
 import { saveDiagnostic } from '../lib/api'
 import * as s from '../theme'
 
@@ -97,6 +98,7 @@ export default function Diagnostic() {
 
   return (
     <div style={s.page}>
+      <OnboardingTopBrand />
       <div style={{ ...s.card, maxWidth: 600 }}>
         <div
           style={{

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 
 import {
+  INTRO_HOLD_AFTER_TYPED_MS,
   LINE_HEIGHT,
   LINE_SIZE,
   PHONE_PROMPT,
@@ -131,12 +132,12 @@ export default function OnboardingIntro({ onDone }: Props) {
         }
 
         setPhase('holding')
-        schedule(current.holdMs, () => {
+        schedule(current.holdMs + INTRO_HOLD_AFTER_TYPED_MS, () => {
           if (isFinale) {
             setPhase('fadePrefix')
             schedule(PREFIX_FADE_MS, () => {
               setPhase('holdPhrase')
-              schedule(PHRASE_HOLD_MS, () => {
+              schedule(PHRASE_HOLD_MS + INTRO_HOLD_AFTER_TYPED_MS, () => {
                 setPhase('fadePhrase')
                 schedule(PHRASE_OUT_MS, () => beginPhonePrompt())
               })

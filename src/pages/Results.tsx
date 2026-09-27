@@ -447,11 +447,35 @@ export default function Results() {
           </div>
         </details>
 
-        <div style={{ marginTop: 28 }}>
-          <button type="button" onClick={() => navigate('/diagnostic')} style={s.buttonSecondary}>
+        <div
+          style={{
+            marginTop: 28,
+            display: 'flex',
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: 10,
+            alignItems: 'stretch',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => navigate('/briefing')}
+            style={{ ...s.buttonPrimary, flex: '1 1 140px', minHeight: 48 }}
+          >
+            Another debate round
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/diagnostic')}
+            style={{ ...s.buttonSecondary, flex: '1 1 140px', minHeight: 48 }}
+          >
             Retake the questions
           </button>
         </div>
+        <p style={{ ...s.subheading, fontSize: 13, marginTop: 12, marginBottom: 0 }}>
+          Another round uses your latest diagnostic answers to set your side — you only need to retake
+          the questions if you want those answers to change.
+        </p>
 
         <SiteBrandFooter
           topicLine={topicLine}

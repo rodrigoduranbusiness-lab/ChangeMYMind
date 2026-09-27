@@ -171,6 +171,19 @@ describe('users/{uid}/sessions/{sessionId}', () => {
       }),
     )
   })
+
+  it('lets the owner read transcript lines but not write them', async () => {
+    await assertSucceeds(
+      getDoc(doc(aliceDb(), 'users', ALICE, 'sessions', 'session1', 'transcript', 'line1')),
+    )
+    await assertFails(
+      setDoc(doc(aliceDb(), 'users', ALICE, 'sessions', 'session1', 'transcript', 'line1'), {
+        speaker: 'ai',
+        text: 'Forged',
+        ts: 0,
+      }),
+    )
+  })
 })
 
 describe('everything else', () => {

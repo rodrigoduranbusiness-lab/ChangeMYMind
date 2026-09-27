@@ -1,10 +1,11 @@
+import type { DocumentReference, Transaction } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions'
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import type { CallableRequest } from 'firebase-functions/v2/https'
 
 import { REGION } from './config'
-import { auth, db, sessionRef, userRef } from './firebase'
-import { runSessionJudge, runTakeaways } from './gemini'
+import { auth, db, debateRoundRef, sessionRef, userRef } from './firebase'
+import { runSessionJudge, runTakeaways } from './llm'
 import { detectInstantLossSpeech, INTERRUPTIONS_TO_LOSE } from './shared/conduct'
 import { looksLikePromptInjection } from './shared/promptGuard'
 import {
@@ -24,7 +25,9 @@ import {
   buildResults,
 } from './shared/scoring'
 import { oppositeSide, sideFromLean } from './shared/topics'
+import { mergeTranscriptAppend, sanitizeTranscriptList } from './shared/transcriptMerge'
 import type {
+  DebateRoundRecord,
   DebateSession,
   DiagnosticResult,
   FinalizeSessionRequest,
@@ -37,6 +40,8 @@ import type {
   StartSessionResponse,
   SubmitTurnRequest,
   SubmitTurnResponse,
+  SyncTranscriptRequest,
+  SyncTranscriptResponse,
   TranscriptEntry,
 } from './shared/types'
 
@@ -102,18 +107,67 @@ export const startSession = onCall<unknown, Promise<StartSessionResponse>>(
       .where('status', '==', 'active')
       .get()
 
-    const batch = db.batch()
-    for (const doc of stale.docs) {
-      batch.update(doc.ref, {
-        status: 'abandoned',
-        outcomeReason: 'abandoned',
-        endedAt: Date.now(),
-      })
-    }
-
     const startedAt = Date.now()
     const ref = userRef(uid).collection('sessions').doc()
-    const session: DebateSession = {
+    const roundNumber = await db.runTransaction(async (tx) => {
+      const userSnap = await tx.get(userRef(uid))
+      const nextRound = (userSnap.get('debateRoundCount') as number | undefined ?? 0) + 1
+      const closedAt = Date.now()
+
+      for (const doc of stale.docs) {
+        const snap = await tx.get(doc.ref)
+        if (snap.get('status') !== 'active') {
+          continue
+        }
+        tx.update(doc.ref, {
+          status: 'abandoned',
+          outcomeReason: 'abandoned',
+          endedAt: closedAt,
+        })
+        tx.set(
+          debateRoundRef(uid, doc.id),
+          {
+            status: 'abandoned',
+            outcomeReason: 'abandoned',
+            endedAt: closedAt,
+          } satisfies Partial<DebateRoundRecord>,
+          { merge: true },
+        )
+      }
+
+      const session: DebateSession = {
+        roundNumber: nextRound,
+        topic,
+        userSide,
+        debaterSide,
+        startedAt,
+        endedAt: null,
+        status: 'active',
+        outcomeReason: null,
+        pausedMs: 0,
+        transcript: [],
+        judgeEvals: [],
+        exchangeCount: 0,
+        eventLog: [],
+        conductEvents: 0,
+        conductPenaltyPoints: 0,
+      }
+      tx.set(ref, session)
+      tx.set(debateRoundRef(uid, ref.id), {
+        sessionId: ref.id,
+        roundNumber: nextRound,
+        topic,
+        startedAt,
+        endedAt: null,
+        status: 'active',
+        outcomeReason: null,
+      } satisfies DebateRoundRecord)
+      tx.update(userRef(uid), { debateRoundCount: nextRound })
+      return nextRound
+    })
+
+    const sessionForDeadline: DebateSession = {
+      roundNumber,
       topic,
       userSide,
       debaterSide,
@@ -125,22 +179,18 @@ export const startSession = onCall<unknown, Promise<StartSessionResponse>>(
       transcript: [],
       judgeEvals: [],
       exchangeCount: 0,
-      eventLog: [],
-      conductEvents: 0,
-      conductPenaltyPoints: 0,
     }
-    batch.set(ref, session)
-    await batch.commit()
 
-    logger.info('Session started', { uid, sessionId: ref.id, topic, debaterSide })
+    logger.info('Session started', { uid, sessionId: ref.id, topic, debaterSide, roundNumber })
 
     return {
       sessionId: ref.id,
+      roundNumber,
       topic,
       userSide,
       debaterSide,
       startedAt,
-      deadline: deadlineFor(session),
+      deadline: deadlineFor(sessionForDeadline),
     }
   },
 )
@@ -216,14 +266,24 @@ export const submitTurn = onCall<SubmitTurnRequest, Promise<SubmitTurnResponse>>
         return terminalDecision(current)
       }
 
-      const mergedLog = current.eventLog ?? []
+      const mergedLog =
+        eventLog.length > (current.eventLog?.length ?? 0)
+          ? eventLog
+          : (current.eventLog ?? [])
       const exchangeCount =
         (current.exchangeCount ?? 0) + (userTurn ? 1 : 0)
 
       const result = decideOutcomeFromEvents(mergedLog)
 
+      const transcript = mergeAndPersistTranscript(
+        tx,
+        ref,
+        current.transcript ?? [],
+        additions,
+      )
+
       const update: Record<string, unknown> = {
-        transcript: [...current.transcript, ...additions],
+        transcript,
         exchangeCount,
         eventLog: mergedLog,
         conductEvents: penaltyCountFromLog(mergedLog),
@@ -231,12 +291,18 @@ export const submitTurn = onCall<SubmitTurnRequest, Promise<SubmitTurnResponse>>
       }
 
       if (result.outcome !== 'continue') {
+        const endedAt = Date.now()
         update.status = result.outcome
         update.outcomeReason = result.reason
-        update.endedAt = Date.now()
+        update.endedAt = endedAt
         if (result.outcome === 'needs_work') {
           update.debateVerdict = 'needs_work'
         }
+        patchDebateRoundInTx(tx, uid, sessionId, {
+          status: result.outcome,
+          outcomeReason: result.reason,
+          endedAt,
+        })
       }
 
       tx.update(ref, update)
@@ -307,7 +373,9 @@ export const finalizeSession = onCall<FinalizeSessionRequest, Promise<FinalizeSe
   callOptions,
   async (request) => {
     const uid = requireUid(request)
-    const { sessionId, reason } = request.data ?? {}
+    const { sessionId, reason, transcript: clientTranscript } = request.data ?? {}
+
+    await mergeClientTranscript(uid, sessionId, clientTranscript)
 
     const session = await loadSession(uid, sessionId)
 
@@ -386,18 +454,45 @@ export const finalizeSession = onCall<FinalizeSessionRequest, Promise<FinalizeSe
     const debateVerdict =
       status === 'passed' ? 'pass' : status === 'needs_work' ? 'needs_work' : session.debateVerdict
 
+    const endedAt = session.endedAt ?? Date.now()
     await sessionRef(uid, sessionId).update({
       status,
       outcomeReason,
-      endedAt: session.endedAt ?? Date.now(),
+      endedAt,
       results,
       ...(judgeVerdict ? { judgeVerdict } : {}),
       ...(debateVerdict ? { debateVerdict } : {}),
     })
+    await debateRoundRef(uid, sessionId).set(
+      {
+        status,
+        outcomeReason,
+        endedAt,
+      } satisfies Partial<DebateRoundRecord>,
+      { merge: true },
+    )
 
     logger.info('Session finalized', { uid, sessionId, status, outcomeReason })
 
     return { status, reason: outcomeReason, results }
+  },
+)
+
+// ---------------------------------------------------------------------------
+// syncTranscript
+// ---------------------------------------------------------------------------
+
+/**
+ * Merges the client's live transcript buffer into the session document (and
+ * per-line subcollection). Safe to call repeatedly — duplicates are skipped.
+ */
+export const syncTranscript = onCall<SyncTranscriptRequest, Promise<SyncTranscriptResponse>>(
+  callOptions,
+  async (request) => {
+    const uid = requireUid(request)
+    const { sessionId, entries } = request.data ?? {}
+    const length = await mergeClientTranscript(uid, sessionId, entries)
+    return { ok: true, length }
   },
 )
 
@@ -420,6 +515,7 @@ export const abandonSession = onRequest({ region: REGION, cors: true }, async (r
     const body = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) as {
       idToken?: string
       sessionId?: string
+      transcript?: unknown
     }
 
     if (!body?.idToken || !body?.sessionId) {
@@ -427,8 +523,15 @@ export const abandonSession = onRequest({ region: REGION, cors: true }, async (r
       return
     }
 
+    const sessionId = body.sessionId
     const decoded = await auth.verifyIdToken(body.idToken)
-    const ref = sessionRef(decoded.uid, body.sessionId)
+    try {
+      await mergeClientTranscript(decoded.uid, sessionId, body.transcript)
+    } catch (error) {
+      logger.warn('abandonSession transcript merge skipped', error)
+    }
+
+    const ref = sessionRef(decoded.uid, sessionId)
 
     await db.runTransaction(async (tx) => {
       const snapshot = await tx.get(ref)
@@ -436,11 +539,21 @@ export const abandonSession = onRequest({ region: REGION, cors: true }, async (r
       if (!current || current.status !== 'active') {
         return
       }
+      const endedAt = Date.now()
       tx.update(ref, {
         status: 'abandoned',
         outcomeReason: 'abandoned',
-        endedAt: Date.now(),
+        endedAt,
       })
+      tx.set(
+        debateRoundRef(decoded.uid, sessionId),
+        {
+          status: 'abandoned',
+          outcomeReason: 'abandoned',
+          endedAt,
+        } satisfies Partial<DebateRoundRecord>,
+        { merge: true },
+      )
     })
 
     res.status(204).send('')
@@ -484,13 +597,19 @@ export const reportConduct = onCall<ReportConductRequest, Promise<ReportConductR
       })
 
       if (kind === 'yelling') {
+        const endedAt = Date.now()
         tx.update(ref, {
           status: 'lost',
           outcomeReason: 'yelling',
-          endedAt: Date.now(),
+          endedAt,
           eventLog,
           conductEvents: penaltyCountFromLog(eventLog),
           conductPenaltyPoints: penaltyCountFromLog(eventLog),
+        })
+        patchDebateRoundInTx(tx, uid, sessionId, {
+          status: 'lost',
+          outcomeReason: 'yelling',
+          endedAt,
         })
         return {
           outcome: 'lost' as const,
@@ -511,12 +630,18 @@ export const reportConduct = onCall<ReportConductRequest, Promise<ReportConductR
         conductPenaltyPoints: penaltyCount,
       }
       if (decision.outcome !== 'continue') {
+        const endedAt = Date.now()
         update.status = decision.outcome
         update.outcomeReason = decision.reason
-        update.endedAt = Date.now()
+        update.endedAt = endedAt
         if (decision.outcome === 'needs_work') {
           update.debateVerdict = 'needs_work'
         }
+        patchDebateRoundInTx(tx, uid, sessionId, {
+          status: decision.outcome,
+          outcomeReason: decision.reason,
+          endedAt,
+        })
       }
       tx.update(ref, update)
 
@@ -549,14 +674,82 @@ async function endSession(
       return
     }
     const log = eventLog ?? current.eventLog
+    const transcript = mergeAndPersistTranscript(
+      tx,
+      ref,
+      current.transcript ?? [],
+      additions,
+    )
+    const endedAt = Date.now()
     tx.update(ref, {
       status,
       outcomeReason: reason,
-      endedAt: Date.now(),
-      transcript: [...current.transcript, ...additions],
+      endedAt,
+      transcript,
       ...(log ? { eventLog: log, conductEvents: penaltyCountFromLog(log), conductPenaltyPoints: penaltyCountFromLog(log) } : {}),
     })
+    tx.set(
+      debateRoundRef(uid, sessionId),
+      {
+        status,
+        outcomeReason: reason,
+        endedAt,
+      } satisfies Partial<DebateRoundRecord>,
+      { merge: true },
+    )
   })
+}
+
+async function mergeClientTranscript(
+  uid: string,
+  sessionId: string,
+  raw: unknown,
+): Promise<number> {
+  const incoming = sanitizeTranscriptList(raw)
+  if (!incoming.length) {
+    const snap = await sessionRef(uid, sessionId).get()
+    return (snap.data() as DebateSession | undefined)?.transcript?.length ?? 0
+  }
+
+  const ref = sessionRef(uid, sessionId)
+  return db.runTransaction(async (tx) => {
+    const snapshot = await tx.get(ref)
+    const current = snapshot.data() as DebateSession | undefined
+    if (!current) {
+      throw new HttpsError('not-found', 'Session not found.')
+    }
+    const transcript = mergeAndPersistTranscript(
+      tx,
+      ref,
+      current.transcript ?? [],
+      incoming,
+    )
+    tx.update(ref, { transcript })
+    return transcript.length
+  })
+}
+
+function patchDebateRoundInTx(
+  tx: Transaction,
+  uid: string,
+  sessionId: string,
+  patch: Partial<DebateRoundRecord>,
+): void {
+  tx.set(debateRoundRef(uid, sessionId), patch, { merge: true })
+}
+
+function mergeAndPersistTranscript(
+  tx: Transaction,
+  ref: DocumentReference,
+  existing: TranscriptEntry[],
+  additions: TranscriptEntry[],
+): TranscriptEntry[] {
+  const merged = mergeTranscriptAppend(existing, additions)
+  const newLines = merged.slice(existing.length)
+  for (const entry of newLines) {
+    tx.set(ref.collection('transcript').doc(), entry)
+  }
+  return merged
 }
 
 function penaltyCountFromLog(log: EventLogEntry[] | undefined): number {

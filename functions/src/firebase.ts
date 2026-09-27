@@ -16,3 +16,7 @@ export function userRef(uid: string) {
 export function sessionRef(uid: string, sessionId: string) {
   return userRef(uid).collection('sessions').doc(sessionId)
 }
+
+export function debateRoundRef(uid: string, sessionId: string) {
+  return userRef(uid).collection('debateRounds').doc(sessionId)
+}

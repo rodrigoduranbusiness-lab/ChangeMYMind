@@ -7,6 +7,7 @@ import type { Side } from '@shared/types'
 import { useAuth } from '../auth/context'
 import AppearingLine from '../components/AppearingLine'
 import FadeLine from '../components/FadeLine'
+import OnboardingTopBrand from '../components/OnboardingTopBrand'
 import { stageShellStyle, textSlotStyle } from '../onboardingLayout'
 import * as s from '../theme'
 
@@ -45,7 +46,7 @@ const DIFFICULTIES: { id: Difficulty; label: string }[] = [
  */
 export default function Briefing() {
   const navigate = useNavigate()
-  const { diagnostic } = useAuth()
+  const { diagnostic, refreshDiagnostic } = useAuth()
   const [stage, setStage] = useState<Stage>('difficultyPrompt')
   const [picked, setPicked] = useState<Difficulty | null>(null)
   const [topicSideReady, setTopicSideReady] = useState(false)
@@ -56,6 +57,16 @@ export default function Briefing() {
       setTopicSideReady(false)
     }
   }, [stage])
+
+  useEffect(() => {
+    void refreshDiagnostic()
+  }, [refreshDiagnostic])
+
+  useEffect(() => {
+    if (!diagnostic?.assignedTopic) {
+      navigate('/diagnostic', { replace: true })
+    }
+  }, [diagnostic, navigate])
 
   useEffect(() => {
     return () => {
@@ -121,6 +132,7 @@ export default function Briefing() {
 
   return (
     <div style={{ ...stageShellStyle, background: 'transparent' }}>
+      <OnboardingTopBrand />
       {canSkip && (
         <button
           type="button"

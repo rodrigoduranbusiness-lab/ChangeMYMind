@@ -4,6 +4,9 @@
 export const TYPE_CHAR_MS = 28
 export const TYPE_CHAR_MS_PUNCT = 88
 
+/** Extra pause with the full line visible before it fades (sign-in intro). */
+export const INTRO_HOLD_AFTER_TYPED_MS = 2000
+
 export const PHONE_PROMPT = 'Enter your phone number to get started'
 export const CODE_PROMPT = 'Enter the code we sent.'
 

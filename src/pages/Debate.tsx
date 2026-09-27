@@ -17,12 +17,14 @@ import SpeakingIndicator from '../components/SpeakingIndicator'
 import {
   abandonSessionOnUnload,
   cacheIdToken,
+  cacheTranscriptForUnload,
   finalizeSession,
   prefetchLiveAccess,
   reportConduct,
   reportPause,
   startSession,
   submitTurn,
+  syncTranscript,
 } from '../lib/api'
 import { DebateController } from '../lib/liveDebate'
 import type { SpeakerState } from '../lib/liveDebate'
@@ -134,6 +136,19 @@ export default function Debate() {
 
   // --- ending -------------------------------------------------------------
 
+  async function persistTranscriptBuffer() {
+    const id = sessionIdRef.current
+    if (!id || !transcriptRef.current.length) {
+      return
+    }
+    await turnChainRef.current.catch(() => {})
+    try {
+      await syncTranscript(id, transcriptRef.current)
+    } catch (caught) {
+      console.error('syncTranscript failed', caught)
+    }
+  }
+
   /** Cuts the audio immediately and hard-switches to the result screen. */
   const endDebate = useCallback(async (result: Outcome) => {
     if (endedRef.current) return
@@ -142,6 +157,17 @@ export default function Debate() {
     controllerRef.current?.cutAudio()
     await controllerRef.current?.stop()
     controllerRef.current = null
+
+    await persistTranscriptBuffer()
+
+    const id = sessionIdRef.current
+    if (id) {
+      try {
+        await finalizeSession(id, undefined, transcriptRef.current)
+      } catch (caught) {
+        console.error('finalize on end failed', caught)
+      }
+    }
 
     setOutcome(result)
     setPhase('finished')
@@ -164,7 +190,16 @@ export default function Debate() {
     const id = sessionIdRef.current
     if (id) {
       try {
-        await finalizeSession(id, 'abandoned')
+        await turnChainRef.current.catch(() => {})
+        const transcript = transcriptRef.current
+        if (transcript.length) {
+          try {
+            await syncTranscript(id, transcript)
+          } catch (syncError) {
+            console.error('syncTranscript on fail failed', syncError)
+          }
+        }
+        await finalizeSession(id, 'abandoned', transcript)
       } catch (caught) {
         console.error('Could not close out the session', caught)
       }
@@ -187,7 +222,16 @@ export default function Debate() {
     }
 
     try {
-      const result = await finalizeSession(sessionId)
+      await turnChainRef.current.catch(() => {})
+      const transcript = transcriptRef.current
+      if (transcript.length) {
+        try {
+          await syncTranscript(sessionId, transcript)
+        } catch (syncError) {
+          console.error('syncTranscript on timeout failed', syncError)
+        }
+      }
+      const result = await finalizeSession(sessionId, undefined, transcript)
       await endDebate({ verdict: verdictFromStatus(result.status), reason: result.reason })
     } catch (caught) {
       console.error('Finalize on timeout failed', caught)
@@ -248,6 +292,7 @@ export default function Debate() {
       if (turn.aiText) {
         transcriptRef.current.push({ speaker: 'ai', text: turn.aiText, ts: now })
       }
+      cacheTranscriptForUnload(transcriptRef.current)
 
       const sessionId = sessionIdRef.current
       if (!sessionId) return

@@ -140,8 +140,22 @@ export interface UserProfile {
   phone: string | null
   /** Optional display name the user sets in settings. */
   displayName?: string | null
+  /** Firestore timestamp in the database; epoch ms when returned locally right after signup. */
   createdAt: number
   diagnostic?: DiagnosticResult
+  /** Total debates started (server-maintained). */
+  debateRoundCount?: number
+}
+
+/** Index row for each debate round (mirrors `sessions/{sessionId}`). */
+export interface DebateRoundRecord {
+  sessionId: string
+  roundNumber: number
+  topic: TopicId
+  startedAt: number
+  endedAt: number | null
+  status: SessionStatus
+  outcomeReason: SessionOutcomeReason | null
 }
 
 /** A point on the circular spectrum. */
@@ -166,6 +180,8 @@ export interface SessionResults {
 }
 
 export interface DebateSession {
+  /** 1-based index of this debate for the user account. */
+  roundNumber?: number
   topic: TopicId
   /** The side the user argues, derived from their diagnostic lean. */
   userSide: Side
@@ -199,6 +215,7 @@ export interface DebateSession {
 
 export interface StartSessionResponse {
   sessionId: string
+  roundNumber: number
   topic: TopicId
   userSide: Side
   debaterSide: Side
@@ -245,6 +262,18 @@ export interface FinalizeSessionRequest {
   sessionId: string
   /** Set when the client is reporting a clean timer expiry. */
   reason?: SessionOutcomeReason
+  /** Client-side transcript buffer; merged server-side before judging. */
+  transcript?: TranscriptEntry[]
+}
+
+export interface SyncTranscriptRequest {
+  sessionId: string
+  entries: TranscriptEntry[]
+}
+
+export interface SyncTranscriptResponse {
+  ok: true
+  length: number
 }
 
 export interface FinalizeSessionResponse {

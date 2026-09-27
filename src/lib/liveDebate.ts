@@ -11,7 +11,8 @@ import { renderOpponentPrompt } from '@shared/prompts'
 import type { Side, TopicId, TranscriptEntry } from '@shared/types'
 import { mintLiveAccess } from './api'
 import { AudioPlayer, MicrophoneCapture, base64ToArrayBuffer, pcm16ToBase64 } from './audio'
-import { VertexLiveSession, type VertexLiveServerContent } from './vertexLive'
+import { connectLiveVoiceSession, type LiveVoiceSession } from './connectLive'
+import type { VertexLiveServerContent } from './vertexLive'
 
 /** Who the UI should show as talking. This is the only live signal the user gets. */
 export type SpeakerState = 'idle' | 'user' | 'ai'
@@ -76,7 +77,7 @@ export class DebateController {
   private debaterSide: Side
   private handlers: DebateHandlers
 
-  private session?: VertexLiveSession
+  private session?: LiveVoiceSession
   private mic?: MicrophoneCapture
   private player?: AudioPlayer
 
@@ -212,17 +213,15 @@ export class DebateController {
 
   private async connect(): Promise<void> {
     const access = await mintLiveAccess()
-    const session = await VertexLiveSession.connect({
-      accessToken: access.accessToken,
-      wsUrl: access.wsUrl,
-      model: access.model,
-      systemInstruction: renderOpponentPrompt(debaterPromptRaw, this.topic, this.debaterSide),
-    })
+    const session = await connectLiveVoiceSession(
+      access,
+      renderOpponentPrompt(debaterPromptRaw, this.topic, this.debaterSide),
+    )
     this.session = session
     void this.runReceiveLoop(session)
   }
 
-  private async runReceiveLoop(session: VertexLiveSession): Promise<void> {
+  private async runReceiveLoop(session: LiveVoiceSession): Promise<void> {
     try {
       for await (const message of session.receive()) {
         // A stale loop from a previous session must not touch current state.

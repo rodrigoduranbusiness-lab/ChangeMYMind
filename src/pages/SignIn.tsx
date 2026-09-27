@@ -8,6 +8,7 @@ import type { ConfirmationResult } from 'firebase/auth'
 import { useEffect, useRef, useState } from 'react'
 
 import OnboardingIntro from '../components/OnboardingIntro'
+import OnboardingTopBrand from '../components/OnboardingTopBrand'
 import { auth, usingEmulators } from '../firebase'
 import { formatUsPhone, isCompleteUsPhone } from '../lib/phoneFormat'
 import {
@@ -207,6 +208,7 @@ export default function SignIn() {
 
   return (
     <div style={s.page}>
+      <OnboardingTopBrand />
       {step === 'intro' ? (
         <OnboardingIntro onDone={() => setStep('phone')} />
       ) : (
