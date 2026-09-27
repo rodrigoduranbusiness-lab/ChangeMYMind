@@ -11,6 +11,8 @@ import Diagnostic from './pages/Diagnostic'
 import Mode from './pages/Mode'
 import Privacy from './pages/Privacy'
 import Results from './pages/Results'
+import ResultsReview from './pages/ResultsReview'
+import Stats from './pages/Stats'
 import Stance from './pages/Stance'
 import TextDebate from './pages/TextDebate'
 import Today from './pages/Today'
@@ -83,6 +85,7 @@ export default function App() {
           <Route path="student/assignment/:assignmentId" element={<StudentAssignment />} />
         </Route>
         <Route path="/today" element={<RequireAuth>{<Today />}</RequireAuth>} />
+        <Route path="/stats" element={<RequireAuth>{<Stats />}</RequireAuth>} />
         <Route path="/stance" element={<RequireAuth>{<Stance />}</RequireAuth>} />
         <Route path="/mode" element={<RequireAuth>{<Mode />}</RequireAuth>} />
         <Route path="/text" element={<RequireAuth>{<TextDebate />}</RequireAuth>} />
@@ -91,6 +94,10 @@ export default function App() {
         <Route path="/briefing" element={<Navigate to="/today" replace />} />
         <Route path="/debate" element={<RequireAuth>{<Debate />}</RequireAuth>} />
         <Route path="/results/:sessionId" element={<RequireAuth>{<Results />}</RequireAuth>} />
+        <Route
+          path="/results/:sessionId/review"
+          element={<RequireAuth>{<ResultsReview />}</RequireAuth>}
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </div>

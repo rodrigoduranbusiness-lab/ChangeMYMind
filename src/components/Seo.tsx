@@ -10,6 +10,7 @@ const ORIGIN = 'https://changemymind.tech'
 
 const PRIVATE_PREFIXES = [
   '/today',
+  '/stats',
   '/stance',
   '/mode',
   '/text',

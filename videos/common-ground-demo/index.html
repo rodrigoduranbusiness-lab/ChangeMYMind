@@ -49,7 +49,7 @@
         padding: 88px 120px;
       }
 
-      .reveal, .screen, .blob { opacity: 0; }
+      .reveal, .screen { opacity: 0; }
 
       .poster {
         font-size: 132px;
@@ -150,18 +150,11 @@
       .track { height: 6px; background: #2a2a2a; margin-bottom: 18px; overflow: hidden; }
       .fill { height: 100%; width: 100%; background: #ffffff; transform-origin: left center; }
 
-      .huey {
-        position: relative;
-        width: 220px;
-        height: 220px;
-        margin: 28px auto 0;
-      }
-      .blob { position: absolute; border-radius: 50%; background: #ffffff; }
-      .b1 { left: 12px; top: 28px; width: 96px; height: 96px; }
-      .b2 { left: 88px; top: 12px; width: 78px; height: 78px; background: #cfcfcf; }
-      .b3 { left: 52px; top: 86px; width: 110px; height: 110px; background: #e8e8e8; }
-      .b4 { left: 130px; top: 100px; width: 64px; height: 64px; background: #9a9a9a; }
-      .b5 { left: 28px; top: 130px; width: 52px; height: 52px; background: #bdbdbd; }
+      .huey-mark { width: 250px; height: 250px; }
+      .huey-mark.beside { width: 148px; height: 148px; }
+      .huey-mark svg { width: 100%; height: 100%; display: block; overflow: visible; }
+      .huey-mark .piece { transform-box: fill-box; transform-origin: center; }
+      #huey-takes .piece { opacity: 0; }
 
       .spec { width: 220px; height: 220px; margin: 20px auto 0; display: block; }
 
@@ -177,6 +170,194 @@
       }
       .mark p { font-size: 28px; }
 
+      #world { align-items: flex-start; padding-top: 128px; }
+
+      #culture-pics, #culture-pics-split, #culture-pics-split-2 { z-index: 6; display: block; padding: 0; }
+      #culture-pics img, #culture-pics-split img, #culture-pics-split-2 img { position: absolute; opacity: 0; }
+      .pic-capitol { left: 36px; bottom: 20px; width: 760px; height: auto; }
+      .pic-odyssey { right: 56px; bottom: 28px; height: 520px; width: auto; }
+
+      #listen-gfx {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 128px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 28px;
+      }
+      .fig { width: 92px; height: 92px; background: #000000; opacity: 0; }
+      #idea-pass { width: 20px; height: 20px; background: #000000; opacity: 0; }
+      #listen-rule { width: 280px; height: 6px; background: #000000; opacity: 0; position: absolute; bottom: -36px; }
+
+      .own { background: #ffffff; z-index: 8; flex-direction: column; gap: 48px; }
+      .side-row, .mode-row, .calm-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 28px;
+      }
+      .side {
+        width: 280px;
+        height: 88px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 32px;
+        border: 2px solid #000000;
+        background: transparent;
+        color: #000000;
+      }
+      #side-you { background: #000000; color: #ffffff; }
+      .wave { display: flex; align-items: flex-end; gap: 10px; height: 88px; }
+      .wave i { display: block; width: 10px; height: 88px; background: #000000; opacity: 0; }
+      .typed { display: flex; flex-direction: column; gap: 12px; width: 220px; }
+      .typed i { display: block; height: 8px; background: #000000; opacity: 0; }
+      .block { width: 120px; height: 120px; background: #000000; }
+      .block.ghost { background: transparent; border: 3px solid #000000; }
+
+      .well {
+        position: relative;
+        width: 1080px;
+        height: 780px;
+        background: #000000;
+        color: #ffffff;
+        overflow: hidden;
+      }
+      .well::before,
+      .well::after {
+        content: "";
+        position: absolute;
+        inset: -80px;
+        z-index: 0;
+        pointer-events: none;
+        background: conic-gradient(
+          from 180deg,
+          #8aa6e8,
+          #b49ae0,
+          #e09ac4,
+          #e0a090,
+          #e0c090,
+          #c4d098,
+          #88c8b4,
+          #88b8d4,
+          #8aa6e8
+        );
+        filter: blur(22px);
+        opacity: 0.38;
+        -webkit-mask-image: radial-gradient(ellipse at center, transparent 58%, #000 84%);
+        mask-image: radial-gradient(ellipse at center, transparent 58%, #000 84%);
+      }
+      .well::after {
+        inset: -120px;
+        background: conic-gradient(
+          from 40deg,
+          #c8b0e4,
+          #e4b0c0,
+          #e4c8a0,
+          #c8d8b0,
+          #a8d0d4,
+          #b0c0e4,
+          #c8b0e4
+        );
+        filter: blur(42px);
+        opacity: 0.22;
+        -webkit-mask-image: radial-gradient(ellipse at center, transparent 54%, #000 88%);
+        mask-image: radial-gradient(ellipse at center, transparent 54%, #000 88%);
+      }
+      .pane {
+        position: absolute;
+        inset: 72px 84px;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        opacity: 0;
+      }
+      .swift { font-size: 52px; line-height: 1.2; font-weight: 500; width: 100%; min-width: 0; }
+      #swift-q span { opacity: 0; }
+      .count { font-size: 160px; line-height: 1; font-weight: 500; text-align: center; width: 100%; }
+      #pane-clock { align-items: center; text-align: center; }
+      .pane .side { width: 240px; height: 76px; border-color: #ffffff; color: #ffffff; background: transparent; }
+      #p-you { background: #ffffff; color: #000000; }
+      .pane .chip { color: #ffffff; background: #000000; border-color: #4a4a4a; }
+      .pane .spec { width: 160px; height: 160px; }
+
+      .page { flex-direction: column; gap: 32px; }
+      .page.top { justify-content: flex-start; padding-top: 120px; }
+      .page .line { font-size: 64px; line-height: 1.08; text-align: center; max-width: 1280px; }
+      .gfx { opacity: 0; display: flex; align-items: center; justify-content: center; gap: 16px; min-height: 120px; }
+      .page .gfx { zoom: 2.35; }
+      .well .gfx { zoom: 1.2; }
+      .bars { align-items: flex-end; }
+      .bars i { display: block; width: 18px; background: #000; }
+      .bars i:nth-child(1) { height: 40px; }
+      .bars i:nth-child(2) { height: 120px; }
+      .bars i:nth-child(3) { height: 70px; }
+      .bars i:nth-child(4) { height: 150px; }
+      .bars i:nth-child(5) { height: 52px; }
+      .bars.short i:nth-child(1) { height: 16px; }
+      .bars.short i:nth-child(2) { height: 28px; }
+      .bars.short i:nth-child(3) { height: 18px; }
+      .bars.short i:nth-child(4) { height: 34px; }
+      .bars.short i:nth-child(5) { height: 14px; }
+      .cross { position: relative; width: 140px; height: 140px; }
+      .cross i { position: absolute; left: 62px; top: 0; width: 16px; height: 140px; background: #000; }
+      .cross i.b { transform: rotate(90deg); transform-origin: center; }
+      .tall { width: 84px; height: 160px; background: #000; }
+      .shortb { width: 84px; height: 48px; background: #000; align-self: flex-end; }
+      .broken i { width: 140px; height: 14px; background: #000; display: block; }
+      .ring { width: 140px; height: 140px; }
+      .brack { width: 36px; height: 120px; border: 10px solid #000; border-right: 0; }
+      .brack.r { border: 10px solid #000; border-left: 0; }
+      .sq { width: 84px; height: 84px; background: #000; display: block; }
+      .sq.hollow { background: transparent; border: 10px solid #000; }
+      .sq.sm { width: 36px; height: 36px; }
+      .sq.lift { margin-bottom: 56px; }
+      .half { width: 56px; height: 130px; background: #000; }
+      .half.drop { margin-top: 36px; }
+      .chev { width: 28px; height: 28px; border-right: 10px solid #000; border-bottom: 10px solid #000; transform: rotate(-45deg); }
+      .figx { width: 72px; height: 72px; background: #000; }
+      .pass { width: 22px; height: 22px; background: #000; }
+      .daybox { width: 120px; height: 120px; border: 10px solid #000; display: flex; align-items: center; justify-content: center; }
+      .daybox i { width: 28px; height: 28px; background: #000; }
+      .page .wave i, .page .typed i, .page .fig { opacity: 1; }
+      .well { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 28px; padding: 80px 88px; }
+      .well > * { position: relative; z-index: 1; }
+      .half, .figx, .pass, .chev, .brack, .caret, .check, .link { display: block; }
+      .broken { flex-direction: column; gap: 22px; }
+      .wave i:nth-child(1) { height: 24px; }
+      .wave i:nth-child(2) { height: 58px; }
+      .wave i:nth-child(3) { height: 88px; }
+      .wave i:nth-child(4) { height: 46px; }
+      .wave i:nth-child(5) { height: 70px; }
+      .well .line { font-size: 42px; color: #fff; max-width: 860px; }
+      .well .bars i, .well .tall, .well .shortb, .well .sq, .well .half, .well .pass, .well .figx, .well .caret, .well .steps i, .well .cols i, .well .link, .well .typed i { background: #fff; }
+      .well .sq.hollow { background: transparent; border-color: #fff; }
+      .well .wave i { background: #fff; opacity: 1; }
+      .well .side { border-color: #fff; color: #fff; }
+      .load { width: 360px; height: 8px; background: #2a2a2a; min-height: 0; }
+      .load i { display: block; height: 100%; width: 100%; background: #fff; transform-origin: left center; }
+      .grid { display: grid; grid-template-columns: repeat(4, 28px); gap: 12px; }
+      .grid i { width: 28px; height: 28px; background: #000; }
+      .well .grid i { background: #fff; }
+      .check { width: 72px; height: 40px; border-left: 12px solid #fff; border-bottom: 12px solid #fff; transform: rotate(-45deg); }
+      .rowdots { gap: 14px; }
+      .caret { width: 10px; height: 84px; background: #000; }
+      .steps { align-items: flex-end; }
+      .steps i { width: 36px; background: #000; display: block; }
+      .steps i:nth-child(1) { height: 24px; }
+      .steps i:nth-child(2) { height: 48px; }
+      .steps i:nth-child(3) { height: 72px; }
+      .steps i:nth-child(4) { height: 96px; }
+      .steps i:nth-child(5) { height: 120px; }
+      .cols i { width: 28px; height: 150px; background: #000; display: block; }
+      .link { width: 72px; height: 8px; background: #000; }
+      .takes i { display: block; height: 10px; background: #fff; margin: 10px auto; }
+      .spec.sm { width: 180px; height: 180px; }
+      #d-bar, #j-respect, #j-quality { transform-origin: left center; }
+
       #grain {
         position: absolute;
         inset: 0;
@@ -187,206 +368,228 @@
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.35' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='128' height='128' filter='url(%23g)'/%3E%3C/svg%3E");
         background-repeat: repeat;
       }
+
     </style>
   </head>
   <body>
-    <div id="root" data-composition-id="common-ground" data-start="0" data-width="1920" data-height="1080" data-duration="111">
+    <div data-hf-id="hf-qcpl" id="root" data-composition-id="common-ground" data-start="0" data-width="1920" data-height="1080" data-duration="136.03">
+      <video data-media-start="0" id="screen_recording_2026-09-27_at_12_59_13_am" data-hf-id="hf-11ddcf33-cbb5-492a-9f0c-971d41b79262" class="clip" src="Screen Recording 2026-09-27 at 12.59.13 AM.mov" data-start="117.05" data-duration="9.475" data-track-index="9" muted playsinline style="position: absolute; left: 0px; top: 0px; width: 1920px; height: 1080px; object-fit: contain; z-index: 22"></video><video data-hf-id="hf-js1i" data-media-start="9.475" id="screen_recording_2026-09-27_at_12_59_13_am-split-2" class="clip" src="Screen Recording 2026-09-27 at 12.59.13 AM.mov" data-start="126.525" data-duration="5.05" data-track-index="9" muted playsinline style="position: absolute; left: 0px; top: 0px; width: 1920px; height: 1080px; object-fit: contain; z-index: 22"></video><video data-hf-id="hf-mqq0" data-media-start="14.525" id="screen_recording_2026-09-27_at_12_59_13_am-split" class="clip" src="Screen Recording 2026-09-27 at 12.59.13 AM.mov" data-start="131.575" data-duration="4.455" data-track-index="9" muted playsinline style="position: absolute; left: 0px; top: 0px; width: 1920px; height: 1080px; object-fit: contain; z-index: 22"></video>
 
-      <section class="clip" id="o1" data-start="0" data-duration="3.3" data-track-index="1">
-        <p class="poster reveal" id="yell">We yell.</p>
+      <section data-hf-id="hf-85uv" class="clip page" id="o1" data-start="0" data-duration="3.3" data-track-index="1">
+        <p data-hf-id="hf-w65z" class="poster reveal" id="yell">We yell.</p>
+        <div data-hf-id="hf-ptc5" class="gfx bars"><i data-hf-id="hf-wt6k"></i><i data-hf-id="hf-zeb8"></i><i data-hf-id="hf-y7e5"></i><i data-hf-id="hf-ylp6"></i><i data-hf-id="hf-0l8b"></i></div>
       </section>
-      <section class="clip" id="o2" data-start="3.3" data-duration="3.3" data-track-index="1">
-        <p class="poster reveal" id="hate">We hate.</p>
+      <section data-hf-id="hf-9y9i" class="clip page" id="o2" data-start="3.3" data-duration="3.3" data-track-index="1">
+        <p data-hf-id="hf-b233" class="poster reveal" id="hate">We hate.</p>
+        <div data-hf-id="hf-cjh1" class="gfx cross"><i data-hf-id="hf-0zjc"></i><i data-hf-id="hf-b68e" class="b"></i></div>
       </section>
-      <section class="clip" id="o3" data-start="6.6" data-duration="3.4" data-track-index="1">
-        <p class="poster mid reveal" id="better">We assume we're better.</p>
+      <section data-hf-id="hf-u6f4" class="clip page" id="o3" data-start="6.6" data-duration="3.4" data-track-index="1">
+        <p data-hf-id="hf-03e9" class="poster mid reveal" id="better">We assume we're better.</p>
+        <div data-hf-id="hf-9n0x" class="gfx"><div data-hf-id="hf-8m0w" class="shortb"></div><div data-hf-id="hf-xbpx" class="tall"></div></div>
       </section>
 
-      <section class="clip" id="problem" data-start="10" data-duration="7.18" data-track-index="1">
-        <div>
-          <p class="poster mid reveal" id="have">We have a problem.</p>
-          <p class="poster mid reveal quiet" id="lost" style="font-size: 48px; margin-top: 28px">We've lost the most important part of a functional society.</p>
-          <p class="poster reveal" id="civil" style="margin-top: 18px">Civil debate.</p>
+      <section data-hf-id="hf-533u" class="clip page" data-start="10" data-duration="2.36" data-track-index="1">
+        <p data-hf-id="hf-rwxg" class="line reveal">We have a problem.</p>
+        <div data-hf-id="hf-cmqs" class="gfx broken"><i data-hf-id="hf-zsm9"></i><i data-hf-id="hf-06xa"></i></div>
+      </section>
+      <section data-hf-id="hf-m8oj" class="clip page" data-start="12.36" data-duration="3.6" data-track-index="1">
+        <p data-hf-id="hf-4irg" class="line reveal">We've lost the most important part of a functional society.</p>
+        <svg data-hf-id="hf-jvxt" class="gfx ring" viewBox="0 0 100 100"><circle data-hf-id="hf-zszp" cx="50" cy="50" r="36" fill="none" stroke="#000" stroke-width="10" stroke-dasharray="170 80" /></svg>
+      </section>
+      <section data-hf-id="hf-sye6" class="clip page" data-start="15.96" data-duration="1.22" data-track-index="1">
+        <p data-hf-id="hf-6p42" class="line reveal">Civil debate.</p>
+        <div data-hf-id="hf-uxqd" class="gfx"><i data-hf-id="hf-avaz" class="brack"></i><i data-hf-id="hf-hy8h" class="brack r"></i></div>
+      </section>
+      <section data-hf-id="hf-51xv" class="clip page" data-start="17.18" data-duration="1.09" data-track-index="1">
+        <p data-hf-id="hf-4762" class="line reveal">On both sides.</p>
+        <div data-hf-id="hf-w4ng" class="gfx"><i data-hf-id="hf-3dvg" class="sq"></i><i data-hf-id="hf-n8tw" class="sq"></i></div>
+      </section>
+      <section data-hf-id="hf-pz80" class="clip page" data-start="18.27" data-duration="0.75" data-track-index="1">
+        <p data-hf-id="hf-3p5g" class="line reveal">We yell.</p>
+        <div data-hf-id="hf-hijd" class="gfx bars"><i data-hf-id="hf-26gf"></i><i data-hf-id="hf-2krg"></i><i data-hf-id="hf-oz7w"></i><i data-hf-id="hf-okwv"></i><i data-hf-id="hf-o6lu"></i></div>
+      </section>
+      <section data-hf-id="hf-6st6" class="clip page" data-start="19.02" data-duration="1.01" data-track-index="1">
+        <p data-hf-id="hf-w63e" class="line reveal">We hate.</p>
+        <div data-hf-id="hf-d51l" class="gfx cross"><i data-hf-id="hf-jqbp"></i><i data-hf-id="hf-c9qq" class="b"></i></div>
+      </section>
+      <section data-hf-id="hf-nhig" class="clip page" data-start="20.03" data-duration="2.38" data-track-index="1">
+        <p data-hf-id="hf-spj2" class="line reveal">We assume we're better.</p>
+        <div data-hf-id="hf-vqcf" class="gfx"><div data-hf-id="hf-dnqw" class="shortb"></div><div data-hf-id="hf-aitl" class="tall"></div></div>
+      </section>
+      <section data-hf-id="hf-hx5a" class="clip page" data-start="22.41" data-duration="1.24" data-track-index="1">
+        <p data-hf-id="hf-lsvx" class="line reveal">Think you're different?</p>
+        <div data-hf-id="hf-wx9i" class="gfx"><i data-hf-id="hf-6ph4" class="sq sm"></i><i data-hf-id="hf-1ybz" class="sq sm lift"></i><i data-hf-id="hf-2kb4" class="sq sm"></i></div>
+      </section>
+      <section data-hf-id="hf-16ud" class="clip page" data-start="23.65" data-duration="1.2" data-track-index="1">
+        <p data-hf-id="hf-fqpi" class="line reveal">Try to change my mind.</p>
+        <div data-hf-id="hf-wiyh" class="gfx"><i data-hf-id="hf-vowg" class="chev"></i></div>
+      </section>
+      <section data-hf-id="hf-z3kr" class="clip page" data-start="24.85" data-duration="1.74" data-track-index="1">
+        <p data-hf-id="hf-jhmc" class="line reveal">We don't want people to yell.</p>
+        <div data-hf-id="hf-7i27" class="gfx bars short"><i data-hf-id="hf-qkg0"></i><i data-hf-id="hf-q64z"></i><i data-hf-id="hf-prty"></i><i data-hf-id="hf-pdix"></i><i data-hf-id="hf-hqsk"></i></div>
+      </section>
+      <section data-hf-id="hf-bazq" class="clip page" data-start="26.59" data-duration="2.95" data-track-index="1">
+        <p data-hf-id="hf-zkly" class="line reveal">Share ideas, and actually listen.</p>
+        <div data-hf-id="hf-xpvk" class="gfx"><i data-hf-id="hf-htt2" class="figx"></i><i data-hf-id="hf-9p5r" class="pass"></i><i data-hf-id="hf-liui" class="figx"></i></div>
+      </section>
+      <section data-hf-id="hf-8rps" class="clip page" data-start="29.54" data-duration="4.37" data-track-index="1">
+        <p data-hf-id="hf-pa97" class="line reveal">One new question a day.</p>
+        <div data-hf-id="hf-xbkj" class="gfx"><div data-hf-id="hf-d2bh" class="daybox"><i data-hf-id="hf-hchj"></i></div></div>
+      </section>
+      <section data-hf-id="hf-495e" class="clip page top" data-start="33.91" data-duration="2.21" data-track-index="1">
+        <p data-hf-id="hf-zhdp" class="line reveal">Politics to pop culture.</p>
+        
+      </section>
+      <section data-hf-id="hf-0od8" class="clip" id="culture-pics" data-start="34.09" data-duration="0.77" data-track-index="3">
+        <img data-hf-id="hf-qywb" id="capitol" class="pic-capitol" src="assets/capitol.png" alt="">
+        <img data-hf-id="hf-16yf" id="odyssey" class="pic-odyssey" src="assets/odyssey.png" alt="">
+      </section><section data-hf-id="hf-s0jg" class="clip" id="culture-pics-split-2" data-start="34.86" data-duration="0.334" data-track-index="3">
+        <img data-hf-id="hf-w1pa" class="pic-capitol" src="assets/capitol.png" alt="">
+        <img data-hf-id="hf-nhu2" class="pic-odyssey" src="assets/odyssey.png" alt="">
+      </section><section data-hf-id="hf-qvqx" class="clip" id="culture-pics-split" data-start="35.194" data-duration="0.926" data-track-index="3">
+        <img data-hf-id="hf-wg0b" class="pic-capitol" src="assets/capitol.png" alt="">
+        <img data-hf-id="hf-nw53" class="pic-odyssey" src="assets/odyssey.png" alt="">
+      </section>
+
+      <section data-hf-id="hf-6iq8" class="clip page" data-start="36.12" data-duration="4.66" data-track-index="1">
+        <div data-hf-id="hf-vtqg" class="well">
+          <p data-hf-id="hf-qxdx" class="line reveal">Today's question.</p><p data-hf-id="hf-fqf5" class="swift" id="swift-q"></p><div data-hf-id="hf-4w1r" class="gfx load"><i data-hf-id="hf-hd7w" id="loadbar"></i></div>
         </div>
       </section>
-
-      <section class="clip" id="sides" data-start="17.18" data-duration="7.67" data-track-index="1">
-        <div>
-          <p class="poster mid reveal" id="both">On both sides.</p>
-          <p class="poster mid reveal" id="trio" style="margin-top: 18px">We yell. We hate. We're better.</p>
-          <p class="poster reveal" id="try" style="margin-top: 28px">Try to change my mind.</p>
+      <section data-hf-id="hf-9iq3" class="clip page" data-start="40.78" data-duration="0.71" data-track-index="1">
+        <div data-hf-id="hf-fao0" class="well">
+          <p data-hf-id="hf-4ftt" class="line reveal">Tap a side.</p><div data-hf-id="hf-yl4a" class="side-row"><div data-hf-id="hf-hmm6" class="side" id="p-you">You</div><div data-hf-id="hf-96os" class="side">Huey</div></div>
         </div>
       </section>
-
-      <section class="clip" id="listen" data-start="24.85" data-duration="4.69" data-track-index="1">
-        <div>
-          <p class="poster mid reveal" id="noyell">We don't want people to yell.</p>
-          <p class="poster mid reveal quiet" id="share" style="margin-top: 20px">We want them to share ideas, and actually listen.</p>
+      <section data-hf-id="hf-mbdy" class="clip page" data-start="41.49" data-duration="1.61" data-track-index="1">
+        <div data-hf-id="hf-e3qx" class="well">
+          <p data-hf-id="hf-9y4u" class="line reveal">Huey takes the other.</p><div data-hf-id="hf-31gu" class="side-row"><div data-hf-id="hf-vyuu" class="side" id="p-you2">You</div><div data-hf-id="hf-m7gw" class="side" id="p-huey">Huey</div></div><div data-hf-id="hf-yjwr" class="huey-mark gfx" id="huey-takes"><svg viewBox="0 0 100 100" aria-hidden="true"><polygon class="piece" points="34.01,20.13 70.10,36.20 65.97,75.48 27.33,83.70 7.58,49.49" fill="#7ec8ff" /><polygon class="piece" points="65.60,10.52 83.48,45.60 48.40,63.48 30.52,28.40" fill="#ffb4a2" /><polygon class="piece" points="38.79,33.45 70.06,76.49 17.15,82.06" fill="#ffe08a" /><polygon class="piece" points="65.27,29.85 84.86,53.19 68.71,79.03 39.14,71.66 37.02,41.26" fill="#9aefc8" /><polygon class="piece" points="35.45,42.25 63.75,55.45 50.55,83.75 22.25,70.55" fill="#d4b4ff" /><polygon class="piece" points="62.17,43.04 72.97,72.72 41.86,67.24" fill="#ff9aad" /></svg></div>
         </div>
       </section>
-
-      <section class="clip" id="world" data-start="29.54" data-duration="6.58" data-track-index="1">
-        <div>
-          <p class="poster mid reveal" id="every">One new question a day.</p>
-          <p class="poster mid reveal quiet" id="pol" style="margin-top: 22px">Politics to pop culture.</p>
+      <section data-hf-id="hf-smfi" class="clip page" data-start="43.1" data-duration="2.08" data-track-index="1">
+        <div data-hf-id="hf-ei1y" class="well">
+          <p data-hf-id="hf-nzt9" class="line reveal">Out loud, or typed.</p><div data-hf-id="hf-s5l6" class="gfx"><div data-hf-id="hf-cfyz" class="wave"><i data-hf-id="hf-8d0n"></i><i data-hf-id="hf-8rbo"></i><i data-hf-id="hf-7kel"></i><i data-hf-id="hf-7ypm"></i><i data-hf-id="hf-9y8r"></i></div><div data-hf-id="hf-jzro" class="typed"><i data-hf-id="hf-3jld" style="width:100%"></i><i data-hf-id="hf-j5vr" style="width:70%"></i><i data-hf-id="hf-iy4w" style="width:88%"></i></div></div>
         </div>
       </section>
-
-      <section class="clip" id="product" data-start="36.12" data-duration="19.75" data-track-index="1">
-        <div class="split">
-          <div class="say">
-            <p class="reveal" id="say-q">Today's question.</p>
-            <p class="note reveal" id="say-tap">Tap a side. Huey takes the other.</p>
-            <p class="note reveal" id="say-mode">Out loud, or typed.</p>
-            <p class="note reveal" id="say-wait">A person, or Huey.</p>
-          </div>
-          <div class="device reveal" id="device">
-            <div class="screen" id="sc-today">
-              <p class="brand">Change My Mind</p>
-              <div class="meta"><span>Today is Sunday</span><span>0 solvers today</span></div>
-              <p class="q">Is Taylor Swift's impact on music positive or negative?</p>
-              <div class="btn">Debate</div>
-              <div class="chips"><span class="chip">Streak 4</span><span class="chip">Wins 2</span></div>
-            </div>
-            <div class="screen" id="sc-stance">
-              <p class="brand">Change My Mind</p>
-              <p class="q">Is Taylor Swift's impact on music positive or negative?</p>
-              <p class="hint">Pick the side you will argue. Huey takes the other side.</p>
-              <div class="pair">
-                <div class="btn" id="pick-pos">Positive</div>
-                <div class="btn ghost" id="pick-neg">Negative</div>
-              </div>
-            </div>
-            <div class="screen" id="sc-mode">
-              <p class="brand">Change My Mind</p>
-              <p class="q">Voice or text</p>
-              <p class="hint">Text matches you with the other side. If no one is waiting, you debate Huey.</p>
-              <div class="btn" id="voice-btn" style="margin-top: 32px">Voice</div>
-              <div class="btn ghost" style="margin-top: 12px">Text</div>
-              <p class="clock">3:00</p>
-            </div>
-          </div>
+      <section data-hf-id="hf-4j9c" class="clip page" data-start="45.18" data-duration="1.87" data-track-index="1">
+        <div data-hf-id="hf-db4v" class="well">
+          <p data-hf-id="hf-t57x" class="line reveal">Three minutes.</p><p data-hf-id="hf-liqq" class="count" id="count">3:00</p>
         </div>
       </section>
-
-      <section class="clip" id="judge" data-start="55.87" data-duration="12.93" data-track-index="1">
-        <div class="split">
-          <div class="say">
-            <p class="reveal" id="j-title">An AI judge.</p>
-            <p class="note reveal" id="j-not">Not which side is right.</p>
-            <p class="note reveal" id="j-lose">Disrespect loses.</p>
-            <p class="note reveal" id="j-back">Come back tomorrow.</p>
-          </div>
-          <div class="device reveal" id="results">
-            <div class="screen" style="opacity: 1">
-              <p class="brand">Change My Mind</p>
-              <p class="q">You won</p>
-              <div class="bars">
-                <p>Respect</p>
-                <div class="track"><div class="fill" id="respect"></div></div>
-                <p>Argument quality</p>
-                <div class="track"><div class="fill" id="quality"></div></div>
-              </div>
-              <svg class="spec" viewBox="0 0 220 220">
-                <path d="M110 110 L110 18 A92 92 0 0 0 110 202 Z" fill="#7aa2d4" opacity="0.35"></path>
-                <path d="M110 110 L110 18 A92 92 0 0 1 110 202 Z" fill="#d48a7a" opacity="0.35"></path>
-                <circle cx="110" cy="110" r="92" fill="none" stroke="#4a4a4a"></circle>
-                <circle cx="110" cy="110" r="58" fill="none" stroke="#2a2a2a" stroke-dasharray="3 5"></circle>
-                <line x1="110" y1="18" x2="110" y2="202" stroke="#4a4a4a"></line>
-                <rect id="marker" x="96" y="96" width="12" height="12" fill="#ffffff"></rect>
-              </svg>
-              <p class="hint" style="text-align: center">Where you landed. A few takeaways.</p>
-              <div class="chips"><span class="chip">Streak 4</span><span class="chip">Wins 3</span></div>
-            </div>
-          </div>
+      <section data-hf-id="hf-j4jd" class="clip page" data-start="47.05" data-duration="2.18" data-track-index="1">
+        <div data-hf-id="hf-dpfw" class="well">
+          <p data-hf-id="hf-k7z9" class="line reveal">Huey argues back, live.</p><div data-hf-id="hf-1mso" class="gfx wave"><i data-hf-id="hf-acjs"></i><i data-hf-id="hf-95mp"></i><i data-hf-id="hf-9jxq"></i><i data-hf-id="hf-bjgv"></i><i data-hf-id="hf-bxrw"></i></div>
         </div>
       </section>
-
-      <section class="clip" id="who" data-start="68.8" data-duration="10.1" data-track-index="1">
-        <div class="split">
-          <div class="say">
-            <p class="reveal" id="who-q">So who is Huey?</p>
-            <p class="note reveal" id="who-a">A collection of opinions.</p>
-            <p class="note reveal" id="who-b">Winning ideas, fact-checked, then learned.</p>
-            <p class="note reveal" id="who-c">Everyone who has argued his side.</p>
-          </div>
-          <div class="device reveal" id="huey-device">
-            <div class="screen" style="opacity: 1; align-items: center; justify-content: center">
-              <p class="brand" style="align-self: flex-start">Change My Mind</p>
-              <div class="huey">
-                <div class="blob b1"></div>
-                <div class="blob b2"></div>
-                <div class="blob b3"></div>
-                <div class="blob b4"></div>
-                <div class="blob b5"></div>
-              </div>
-              <p class="q" style="text-align: center; margin-top: 28px">Huey</p>
-              <p class="hint" style="text-align: center">The other side, made of today's winners.</p>
-            </div>
-          </div>
+      <section data-hf-id="hf-mc04" class="clip page" data-start="49.23" data-duration="4.19" data-track-index="1">
+        <div data-hf-id="hf-ciit" class="well">
+          <p data-hf-id="hf-i6i6" class="line reveal">Matched with another person.</p><div data-hf-id="hf-rra5" class="gfx"><i data-hf-id="hf-m1wt" class="sq"></i><i data-hf-id="hf-dvz8" class="link"></i><i data-hf-id="hf-mg7u" class="sq"></i></div>
         </div>
       </section>
-
-      <section class="clip" id="build" data-start="78.9" data-duration="18.1" data-track-index="1">
-        <div class="stack">
-          <p class="reveal" id="b1">Built in Cursor.</p>
-          <p class="note reveal" id="b2">Firebase handles sign-in, the lobby, and streaks.</p>
-          <p class="reveal" id="b3">Two Grok agents. One speaks. One judges.</p>
-          <p class="note reveal" id="b4">Every change is tested before it ships.</p>
-          <p class="reveal" id="b5">Understanding, not conflict.</p>
-          <p class="poster reveal" id="b6" style="font-size: 72px; text-align: left; margin-top: 12px">One discussion at a time.</p>
+      <section data-hf-id="hf-7m95" class="clip page" data-start="53.42" data-duration="2.45" data-track-index="1">
+        <div data-hf-id="hf-cwtu" class="well">
+          <p data-hf-id="hf-nw22" class="line reveal">Or you debate Huey.</p><div data-hf-id="hf-hnhr" class="gfx"><i data-hf-id="hf-ofqz" class="sq"></i><div data-hf-id="hf-gho4" class="huey-mark beside"><svg viewBox="0 0 100 100" aria-hidden="true"><polygon class="piece" points="34.01,20.13 70.10,36.20 65.97,75.48 27.33,83.70 7.58,49.49" fill="#7ec8ff" /><polygon class="piece" points="65.60,10.52 83.48,45.60 48.40,63.48 30.52,28.40" fill="#ffb4a2" /><polygon class="piece" points="38.79,33.45 70.06,76.49 17.15,82.06" fill="#ffe08a" /><polygon class="piece" points="65.27,29.85 84.86,53.19 68.71,79.03 39.14,71.66 37.02,41.26" fill="#9aefc8" /><polygon class="piece" points="35.45,42.25 63.75,55.45 50.55,83.75 22.25,70.55" fill="#d4b4ff" /><polygon class="piece" points="62.17,43.04 72.97,72.72 41.86,67.24" fill="#ff9aad" /></svg></div></div>
         </div>
       </section>
-
-      <section class="clip" id="demo" data-start="97" data-duration="14" data-track-index="1">
-        <div class="device" id="demo-device" style="width: 620px; height: 700px">
-          <div class="screen" id="d1">
-            <p class="brand">Change My Mind</p>
-            <div class="meta"><span>Today is Sunday</span><span>0 solvers today</span></div>
-            <p class="q">Is Taylor Swift's impact on music positive or negative?</p>
-            <div class="btn">Debate</div>
-            <div class="chips"><span class="chip">Streak 4</span><span class="chip">Wins 2</span></div>
-          </div>
-          <div class="screen" id="d2">
-            <p class="brand">Change My Mind</p>
-            <p class="q">Voice or text</p>
-            <p class="hint">Huey argues back, live. Or you type, and we look for a person.</p>
-            <div class="btn" style="margin-top: 36px">Voice</div>
-            <div class="btn ghost" style="margin-top: 12px">Text</div>
-            <p class="clock">3:00</p>
-          </div>
-          <div class="screen" id="d3">
-            <p class="brand">Change My Mind</p>
-            <p class="q">You won</p>
-            <svg class="spec" viewBox="0 0 220 220">
-              <path d="M110 110 L110 18 A92 92 0 0 0 110 202 Z" fill="#7aa2d4" opacity="0.35"></path>
-              <path d="M110 110 L110 18 A92 92 0 0 1 110 202 Z" fill="#d48a7a" opacity="0.35"></path>
-              <circle cx="110" cy="110" r="92" fill="none" stroke="#4a4a4a"></circle>
-              <line x1="110" y1="18" x2="110" y2="202" stroke="#4a4a4a"></line>
-              <rect x="78" y="88" width="12" height="12" fill="#ffffff"></rect>
-            </svg>
-            <div class="bars">
-              <p>Respect</p>
-              <div class="track"><div class="fill" id="d-respect" style="transform: scaleX(0.86)"></div></div>
-              <p>Argument quality</p>
-              <div class="track"><div class="fill" id="d-quality" style="transform: scaleX(0.74)"></div></div>
-            </div>
-            <p class="hint">A good take. The streak holds.</p>
-            <div class="chips"><span class="chip">Streak 5</span><span class="chip">Wins 3</span></div>
-          </div>
+      <section data-hf-id="hf-kbr7" class="clip page" data-start="55.87" data-duration="3.63" data-track-index="1">
+        <div data-hf-id="hf-bpwr" class="well">
+          <p data-hf-id="hf-edjy" class="line reveal">An AI judge.</p><div data-hf-id="hf-72tk" class="bars" style="width:420px;display:block"><p data-hf-id="hf-l2j3">Respect</p><div data-hf-id="hf-64lp" class="track"><div data-hf-id="hf-sna0" class="fill" id="j-respect"></div></div><p data-hf-id="hf-ij8l">Argument quality</p><div data-hf-id="hf-gav5" class="track"><div data-hf-id="hf-2am1" class="fill" id="j-quality"></div></div></div>
         </div>
       </section>
-
-      <section class="clip mark" id="mark" data-start="23.65" data-duration="87.35" data-track-index="5">
-        <p>Change My Mind</p>
+      <section data-hf-id="hf-1p2i" class="clip page" data-start="59.5" data-duration="1.4" data-track-index="1">
+        <div data-hf-id="hf-c47s" class="well">
+          <p data-hf-id="hf-rdnr" class="line reveal">Not which side is right.</p><svg data-hf-id="hf-yeet" class="spec sm" viewBox="0 0 220 220"><path data-hf-id="hf-an42" d="M110 110 L110 18 A92 92 0 0 0 110 202 Z" fill="#7aa2d4" opacity="0.7" /><path data-hf-id="hf-hvd5" d="M110 110 L110 18 A92 92 0 0 1 110 202 Z" fill="#d48a7a" opacity="0.7" /><circle data-hf-id="hf-8hwg" cx="110" cy="110" r="92" fill="none" stroke="#4a4a4a" /><line data-hf-id="hf-6iiw" x1="110" y1="18" x2="110" y2="202" stroke="#4a4a4a" /><rect data-hf-id="hf-3tl3" x="104" y="104" width="12" height="12" fill="#fff" /></svg>
+        </div>
+      </section>
+      <section data-hf-id="hf-1vn1" class="clip page" data-start="60.9" data-duration="1.34" data-track-index="1">
+        <div data-hf-id="hf-ngeo" class="well">
+          <p data-hf-id="hf-h8qi" class="line reveal">Disrespect loses.</p><div data-hf-id="hf-sbk0" class="bars" style="width:420px;display:block"><p data-hf-id="hf-wkz3">Respect</p><div data-hf-id="hf-hhs8" class="track"><div data-hf-id="hf-5mib" class="fill" id="d-bar"></div></div></div>
+        </div>
+      </section>
+      <section data-hf-id="hf-dylo" class="clip page" data-start="62.24" data-duration="1.52" data-track-index="1">
+        <div data-hf-id="hf-n23n" class="well">
+          <p data-hf-id="hf-z066" class="line reveal">Where you landed.</p><svg data-hf-id="hf-ckvd" class="spec sm" viewBox="0 0 220 220"><path data-hf-id="hf-gyxy" d="M110 110 L110 18 A92 92 0 0 0 110 202 Z" fill="#7aa2d4" opacity="0.7" /><path data-hf-id="hf-vwn1" d="M110 110 L110 18 A92 92 0 0 1 110 202 Z" fill="#d48a7a" opacity="0.7" /><circle data-hf-id="hf-sql4" cx="110" cy="110" r="92" fill="none" stroke="#4a4a4a" /><line data-hf-id="hf-yz7k" x1="110" y1="18" x2="110" y2="202" stroke="#4a4a4a" /><rect data-hf-id="hf-89yb" id="a-marker" x="96" y="96" width="12" height="12" fill="#fff" /></svg>
+        </div>
+      </section>
+      <section data-hf-id="hf-zbby" class="clip page" data-start="63.76" data-duration="1.34" data-track-index="1">
+        <div data-hf-id="hf-mnsm" class="well">
+          <p data-hf-id="hf-hfzf" class="line reveal">A few takeaways.</p><div data-hf-id="hf-3b0p" class="gfx takes"><i data-hf-id="hf-t8gn" style="width:280px"></i><i data-hf-id="hf-o8ph" style="width:220px"></i><i data-hf-id="hf-xmcw" style="width:250px"></i></div>
+        </div>
+      </section>
+      <section data-hf-id="hf-v4mh" class="clip page" data-start="65.1" data-duration="1.48" data-track-index="1">
+        <div data-hf-id="hf-m9hl" class="well">
+          <p data-hf-id="hf-azgh" class="line reveal">Your streak updates.</p><div data-hf-id="hf-u9ns" class="gfx steps"><i data-hf-id="hf-7lcu"></i><i data-hf-id="hf-771t"></i><i data-hf-id="hf-8dyw"></i><i data-hf-id="hf-7znv"></i><i data-hf-id="hf-604q"></i></div>
+        </div>
+      </section>
+      <section data-hf-id="hf-jma7" class="clip page" data-start="66.58" data-duration="2.22" data-track-index="1">
+        <div data-hf-id="hf-lv6k" class="well">
+          <p data-hf-id="hf-9bms" class="line reveal">Come back tomorrow.</p><div data-hf-id="hf-i1ss" class="gfx"><div data-hf-id="hf-abdd" class="daybox"><i data-hf-id="hf-5ltp"></i></div></div>
+        </div>
+      </section>
+      <section data-hf-id="hf-lf8j" class="clip page" data-start="68.8" data-duration="1.28" data-track-index="1">
+        <div data-hf-id="hf-lgvj" class="well">
+          <p data-hf-id="hf-740u" class="line reveal">Who is Huey?</p><div data-hf-id="hf-64eu" class="huey-mark gfx" id="huey-who"><svg viewBox="0 0 100 100" aria-hidden="true"><polygon class="piece" points="34.01,20.13 70.10,36.20 65.97,75.48 27.33,83.70 7.58,49.49" fill="#7ec8ff" /><polygon class="piece" points="65.60,10.52 83.48,45.60 48.40,63.48 30.52,28.40" fill="#ffb4a2" /><polygon class="piece" points="38.79,33.45 70.06,76.49 17.15,82.06" fill="#ffe08a" /><polygon class="piece" points="65.27,29.85 84.86,53.19 68.71,79.03 39.14,71.66 37.02,41.26" fill="#9aefc8" /><polygon class="piece" points="35.45,42.25 63.75,55.45 50.55,83.75 22.25,70.55" fill="#d4b4ff" /><polygon class="piece" points="62.17,43.04 72.97,72.72 41.86,67.24" fill="#ff9aad" /></svg></div>
+        </div>
+      </section>
+      <section data-hf-id="hf-vsok" class="clip page" data-start="70.08" data-duration="2.07" data-track-index="1">
+        <div data-hf-id="hf-l2ki" class="well">
+          <p data-hf-id="hf-dqhl" class="line reveal">A collection of opinions.</p><div data-hf-id="hf-p59j" class="gfx grid"><i data-hf-id="hf-6sqs"></i><i data-hf-id="hf-6efr"></i><i data-hf-id="hf-art2"></i><i data-hf-id="hf-adi1"></i><i data-hf-id="hf-otn5"></i><i data-hf-id="hf-p7y6"></i><i data-hf-id="hf-pm97"></i><i data-hf-id="hf-q0k8"></i></div>
+        </div>
+      </section>
+      <section data-hf-id="hf-snbu" class="clip page" data-start="72.15" data-duration="4.1" data-track-index="1">
+        <div data-hf-id="hf-ko9h" class="well">
+          <p data-hf-id="hf-qvf4" class="line reveal">Winning ideas, fact-checked.</p><div data-hf-id="hf-guvp" class="gfx"><i data-hf-id="hf-yqa4" class="check"></i></div>
+        </div>
+      </section>
+      <section data-hf-id="hf-o523" class="clip page" data-start="76.25" data-duration="2.65" data-track-index="1">
+        <div data-hf-id="hf-k9yg" class="well">
+          <p data-hf-id="hf-8rx2" class="line reveal">Everyone who argued his side.</p><div data-hf-id="hf-l015" class="gfx rowdots"><i data-hf-id="hf-1de1" class="sq sm"></i><i data-hf-id="hf-1rp2" class="sq sm"></i><i data-hf-id="hf-0krz" class="sq sm"></i><i data-hf-id="hf-0z30" class="sq sm"></i><i data-hf-id="hf-zs5x" class="sq sm"></i><i data-hf-id="hf-06gy" class="sq sm"></i><i data-hf-id="hf-yzjv" class="sq sm"></i></div>
+        </div>
+      </section>
+      <section data-hf-id="hf-9o7e" class="clip page" data-start="78.9" data-duration="1.43" data-track-index="1">
+        <div data-hf-id="hf-jvnf" class="well">
+          <p data-hf-id="hf-7fbn" class="line reveal">Built in Cursor.</p><div data-hf-id="hf-h96q" class="gfx"><i data-hf-id="hf-ougp" class="caret"></i></div>
+        </div>
+      </section>
+      <section data-hf-id="hf-xhj3" class="clip page" data-start="80.33" data-duration="3.97" data-track-index="1">
+        <div data-hf-id="hf-pre3" class="well">
+          <p data-hf-id="hf-w8s2" class="line reveal">Firebase. Sign-in, the lobby, streaks.</p><div data-hf-id="hf-pdnk" class="gfx steps"><i data-hf-id="hf-n8f1"></i><i data-hf-id="hf-nmq2"></i><i data-hf-id="hf-o113"></i></div>
+        </div>
+      </section>
+      <section data-hf-id="hf-ir2n" class="clip page" data-start="84.3" data-duration="1.72" data-track-index="1">
+        <div data-hf-id="hf-q5p4" class="well">
+          <p data-hf-id="hf-bfb9" class="line reveal">Two Grok agents, in parallel.</p><div data-hf-id="hf-nnge" class="gfx cols"><i data-hf-id="hf-ofc4"></i><i data-hf-id="hf-s03d"></i></div>
+        </div>
+      </section>
+      <section data-hf-id="hf-nmmx" class="clip page" data-start="86.02" data-duration="2.03" data-track-index="1">
+        <div data-hf-id="hf-oys1" class="well">
+          <p data-hf-id="hf-qukm" class="line reveal">One speaking. One judging.</p><div data-hf-id="hf-j8pv" class="gfx"><div data-hf-id="hf-wrob" class="wave"><i data-hf-id="hf-seee"></i><i data-hf-id="hf-o1zc"></i><i data-hf-id="hf-nnob"></i><i data-hf-id="hf-n9da"></i><i data-hf-id="hf-mv29"></i></div><div data-hf-id="hf-kmp8" class="typed"><i data-hf-id="hf-vc9x" style="width:100%"></i><i data-hf-id="hf-7zqf" style="width:70%"></i><i data-hf-id="hf-wi7c" style="width:88%"></i></div></div>
+        </div>
+      </section>
+      <section data-hf-id="hf-p3np" class="clip page" data-start="88.05" data-duration="3.7" data-track-index="1">
+        <div data-hf-id="hf-pd32" class="well">
+          <p data-hf-id="hf-rq7w" class="line reveal">Tested before it ships.</p><div data-hf-id="hf-jn0w" class="gfx"><i data-hf-id="hf-cb6s" class="check"></i><i data-hf-id="hf-b49p" class="check"></i><i data-hf-id="hf-bikq" class="check"></i></div>
+        </div>
+      </section>
+      <section data-hf-id="hf-6wfj" class="clip page" data-start="91.75" data-duration="3.75" data-track-index="1">
+        <div data-hf-id="hf-o65z" class="well">
+          <p data-hf-id="hf-r9qz" class="line reveal">Understanding, not conflict.</p><div data-hf-id="hf-o8eu" class="gfx" id="calm"><i data-hf-id="hf-zst9" class="sq" id="blk-a"></i><i data-hf-id="hf-0eod" class="sq hollow" id="blk-b"></i></div>
+        </div>
+      </section>
+      <section data-hf-id="hf-d8a4" class="clip page" data-start="95.5" data-duration="21.55" data-track-index="1">
+        <div data-hf-id="hf-okh0" class="well">
+          <p data-hf-id="hf-yxkf" class="line reveal">One discussion at a time.</p><div data-hf-id="hf-ig3t" class="gfx"><i data-hf-id="hf-ou20" class="sq"></i></div>
+        </div>
+      </section>
+      <section data-hf-id="hf-fvck" class="clip mark" id="mark" data-start="23.65" data-duration="93.4" data-track-index="5">
+        <p data-hf-id="hf-r0d5">Change My Mind</p>
       </section>
 
-      <audio id="narration" src="assets/narration.mp3" data-start="10" data-duration="87" data-track-index="10" data-volume="1"></audio>
-      <div id="grain"></div>
+      <audio data-hf-id="hf-ome5" id="narration" src="assets/narration.mp3" data-start="10" data-duration="87" data-track-index="10" data-volume="1"></audio>
+      <div data-hf-id="hf-f6d6" id="grain"></div>
     </div>
     <script>
       const tl = gsap.timeline({ paused: true });
-      tl.set("#respect, #quality", { scaleX: 0 }, 0);
 
       function enter(sel, at) {
         tl.set(sel, { opacity: 1 }, at);
@@ -408,81 +611,61 @@
         );
       }
 
-      enter("#yell", 0.25);
-      enter("#hate", 3.5);
-      enter("#better", 6.8);
-
-      enter("#have", 10.2);
-      enter("#lost", 12.45);
-      enter("#civil", 16.05);
-
-      enter("#both", 17.3);
-      enter("#trio", 18.4);
-      enter("#try", 23.7);
-
-      enter("#noyell", 24.95);
-      enter("#share", 26.7);
-
-      enter("#every", 29.65);
-      enter("#pol", 33.95);
-
-      enter("#say-q", 36.2);
-      place("#device", 36.35);
-      tl.set("#sc-today", { opacity: 1 }, 36.35);
-
-      enter("#say-tap", 40.85);
-      tl.set("#say-q", { opacity: 0 }, 40.85);
-      tl.set("#sc-today", { opacity: 0 }, 40.85);
-      tl.set("#sc-stance", { opacity: 1 }, 40.85);
-      tl.to("#pick-pos", { backgroundColor: "#ffffff", color: "#000000", duration: 0.3 }, 41.55);
-
-      enter("#say-mode", 43.2);
-      tl.set("#say-tap", { opacity: 0 }, 43.2);
-      tl.set("#sc-stance", { opacity: 0 }, 43.2);
-      tl.set("#sc-mode", { opacity: 1 }, 43.2);
-
-      enter("#say-wait", 49.3);
-      tl.set("#say-mode", { opacity: 0 }, 49.3);
-
-      enter("#j-title", 55.95);
-      place("#results", 56.05);
-      tl.set("#respect, #quality", { opacity: 1 }, 56.4);
-      tl.fromTo("#respect", { scaleX: 0 }, { scaleX: 0.86, duration: 0.8, ease: "power2.out", immediateRender: false }, 56.45);
-      tl.fromTo("#quality", { scaleX: 0 }, { scaleX: 0.72, duration: 0.8, ease: "power2.out", immediateRender: false }, 56.65);
-      enter("#j-not", 59.55);
-      enter("#j-lose", 60.95);
-      tl.to("#respect", { scaleX: 0.2, duration: 0.45, ease: "power2.in" }, 61.0);
-      tl.fromTo("#marker", { x: 0, y: 0 }, { x: -28, y: -12, duration: 0.6, ease: "power3.out", immediateRender: false }, 62.3);
-      enter("#j-back", 66.65);
-
-      enter("#who-q", 68.9);
-      place("#huey-device", 69.0);
-      document.querySelectorAll("#huey-device .blob").forEach((el, i) => {
-        tl.set(el, { opacity: 1 }, 69.15 + i * 0.07);
-        tl.fromTo(
-          el,
-          { scale: 0.6 },
-          { scale: 1, duration: 0.5, ease: "power3.out", immediateRender: false },
-          69.15 + i * 0.07,
-        );
+      document.querySelectorAll(".page").forEach((page) => {
+        const at = Number(page.getAttribute("data-start"));
+        const line = page.querySelector(".line, .poster");
+        if (line) enter(line, at + 0.05);
+        const g = page.querySelector(".gfx");
+        if (g) {
+          tl.set(g, { opacity: 1 }, at + 0.1);
+          tl.fromTo(g, { y: 22 }, { y: 0, duration: 0.4, ease: "power3.out", immediateRender: false }, at + 0.1);
+        }
       });
-      enter("#who-a", 70.15);
-      enter("#who-b", 72.25);
-      enter("#who-c", 76.35);
 
-      enter("#b1", 79.0);
-      enter("#b2", 80.45);
-      enter("#b3", 84.4);
-      enter("#b4", 88.15);
-      enter("#b5", 91.85);
-      enter("#b6", 95.55);
+      tl.set(".pic-capitol", { opacity: 1, transformOrigin: "left bottom" }, 34.09);
+      tl.fromTo(".pic-capitol", { y: 22, scale: 0.94 }, { y: 0, scale: 1, duration: 0.38, ease: "power3.out", immediateRender: false }, 34.09);
+      tl.to(".pic-capitol", { scale: 1.06, duration: 0.1, ease: "power2.out", immediateRender: false }, 34.92);
+      tl.to(".pic-capitol", { scale: 1, duration: 0.14, ease: "power2.inOut", immediateRender: false }, 35.02);
+      tl.set(".pic-odyssey", { opacity: 1, transformOrigin: "right bottom" }, 35.05);
+      tl.fromTo(".pic-odyssey", { scale: 0.82 }, { scale: 1, duration: 0.26, ease: "power4.out", immediateRender: false }, 35.05);
 
-      place("#demo-device", 97.15);
-      tl.set("#d1", { opacity: 1 }, 97.15);
-      tl.set("#d1", { opacity: 0 }, 101.4);
-      tl.set("#d2", { opacity: 1 }, 101.4);
-      tl.set("#d2", { opacity: 0 }, 105.8);
-      tl.set("#d3", { opacity: 1 }, 105.8);
+      const question = "Is Taylor Swift's impact on music positive or negative?";
+      const swift = document.getElementById("swift-q");
+      swift.innerHTML = [...question].map((ch) => (ch === " " ? " " : `<span>${ch}</span>`)).join("");
+      swift.querySelectorAll("span").forEach((span, i) => {
+        tl.set(span, { opacity: 1 }, 36.4 + i * 0.055);
+      });
+      tl.set("#loadbar", { scaleX: 0 }, 0);
+      tl.fromTo("#loadbar", { scaleX: 0 }, { scaleX: 1, duration: 3.2, ease: "none", immediateRender: false }, 36.4);
+
+      tl.set("#p-huey", { backgroundColor: "#ffffff", color: "#000000" }, 41.9);
+      document.querySelectorAll("#huey-takes .piece").forEach((el, i) => {
+        tl.set(el, { opacity: 1 }, 41.6 + i * 0.07);
+        tl.fromTo(el, { scale: 0.72 }, { scale: 1, duration: 0.42, ease: "power3.out", immediateRender: false }, 41.6 + i * 0.07);
+      });
+
+      tl.to({ remain: 180 }, {
+        remain: 178,
+        duration: 1.7,
+        ease: "none",
+        immediateRender: false,
+        onUpdate() {
+          const left = Math.ceil(this.targets()[0].remain);
+          const mins = Math.floor(left / 60);
+          const secs = left % 60;
+          document.getElementById("count").textContent = `${mins}:${String(secs).padStart(2, "0")}`;
+        },
+      }, 45.18);
+
+      tl.set("#j-respect, #j-quality", { scaleX: 0 }, 0);
+      tl.fromTo("#j-respect", { scaleX: 0 }, { scaleX: 0.86, duration: 0.7, ease: "power2.out", immediateRender: false }, 56.5);
+      tl.fromTo("#j-quality", { scaleX: 0 }, { scaleX: 0.74, duration: 0.7, ease: "power2.out", immediateRender: false }, 56.7);
+      tl.fromTo("#d-bar", { scaleX: 1 }, { scaleX: 0.22, duration: 0.45, ease: "power2.in", immediateRender: false }, 61.0);
+      tl.fromTo("#a-marker", { x: 0, y: 0 }, { x: -26, y: -10, duration: 0.5, ease: "power3.out", immediateRender: false }, 62.35);
+      tl.set("#blk-a", { x: 48 }, 91.75);
+      tl.set("#blk-b", { x: -48 }, 91.75);
+      tl.to("#blk-a", { x: 0, duration: 0.55, ease: "power3.out", immediateRender: false }, 94.28);
+      tl.to("#blk-b", { x: 0, duration: 0.55, ease: "power3.out", immediateRender: false }, 94.28);
 
       window.__timelines["common-ground"] = tl;
     </script>

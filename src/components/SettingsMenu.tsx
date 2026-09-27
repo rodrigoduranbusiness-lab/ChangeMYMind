@@ -1,5 +1,5 @@
 import { signOut } from 'firebase/auth'
-import { Settings } from 'lucide-react'
+import { Settings, X } from 'lucide-react'
 import { useState, type CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
@@ -148,13 +148,13 @@ export default function SettingsMenu() {
                   background: 'rgba(255, 255, 255, 0.04)',
                   color: s.color.textMuted,
                   cursor: busy ? 'not-allowed' : 'pointer',
-                  fontFamily: s.font.serif,
-                  fontSize: 22,
-                  lineHeight: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   opacity: busy ? 0.4 : 1,
                 }}
               >
-                ×
+                <X size={18} strokeWidth={1.75} aria-hidden="true" />
               </button>
             </div>
 

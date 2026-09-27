@@ -2,6 +2,7 @@
 User-agent: *
 Allow: /
 Disallow: /today
+Disallow: /stats
 Disallow: /stance
 Disallow: /mode
 Disallow: /text
@@ -15,6 +16,7 @@ Disallow: /education/student
 User-agent: Googlebot
 Allow: /
 Disallow: /today
+Disallow: /stats
 Disallow: /stance
 Disallow: /mode
 Disallow: /text
@@ -26,6 +28,7 @@ Disallow: /results
 User-agent: Bingbot
 Allow: /
 Disallow: /today
+Disallow: /stats
 Disallow: /stance
 Disallow: /mode
 Disallow: /text

@@ -12,11 +12,11 @@ We have a problem. We've lost the most important part of a functional society: c
 
 ## The ask (0:25–0:30)
 
-We don't want people to yell. We want them to share ideas and actually listen.
+We don't want people to yell. We want them to share ideas and actually listen. Two marks pass an idea, then a line draws between them.
 
 ## The day (0:30–0:56)
 
-Every day, there's one new question tied to what's happening in the world, from politics to pop culture. Today's: is Taylor Swift's impact on music positive or negative? Tap a side. Huey takes the other. Argue out loud or type, and a three-minute clock starts. In voice, Huey argues back live. In text, you're matched with another person and Huey moderates, or you debate Huey if no one's waiting.
+Every day, there's one new question tied to what's happening in the world, from politics to pop culture. On that line the Capitol sits large in the corner, then the Odyssey poster pops in. Today's question through the end is one black panel. A different color presses in from each edge. The Taylor Swift question loads in, Huey takes the other side, the three-minute clock starts, then the analytics stay up.
 
 ## The judge (0:56–1:09)
 
@@ -28,7 +28,7 @@ So who is Huey? Huey is a collection of opinions. He takes the winning ideas, fa
 
 ## The build (1:19–1:37)
 
-We built it in Cursor. Firebase handles sign-in, the daily lobby, and streaks. Two Grok agents run in parallel, one speaking and one judging, and every change is tested on sample debates before it ships. Debate should be rooted in understanding, not conflict. One discussion at a time.
+We built it in Cursor. Firebase handles sign-in, the daily lobby, and streaks. Two Grok agents run in parallel, one speaking and one judging, and every change is tested on sample debates before it ships. Understanding, not conflict is its own card. One discussion at a time.
 
 ## The demo (1:37–1:51)
 

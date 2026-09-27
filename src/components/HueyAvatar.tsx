@@ -1,16 +1,57 @@
 import type { CSSProperties } from 'react'
 
-type HueyAvatarSize = 'sm' | 'md' | 'lg'
+type HueyAvatarSize = 'sm' | 'md' | 'lg' | 'xl'
 type HueyAvatarVariant = 'mono' | 'color'
+type Sides = 3 | 4 | 5
 
 const SIZES: Record<HueyAvatarSize, number> = {
   sm: 40,
   md: 72,
   lg: 120,
+  xl: 280,
 }
 
+/** CSS clip-path for a regular n-gon, tip-up, in percent of the box. */
+function clipPath(sides: Sides): string {
+  const pts: string[] = []
+  const start = -Math.PI / 2
+  for (let i = 0; i < sides; i++) {
+    const a = start + (i * 2 * Math.PI) / sides
+    const x = 50 + 48 * Math.cos(a)
+    const y = 50 + 48 * Math.sin(a)
+    pts.push(`${x.toFixed(1)}% ${y.toFixed(1)}%`)
+  }
+  return `polygon(${pts.join(', ')})`
+}
+
+type Piece = {
+  sides: Sides
+  left: string
+  top: string
+  scale: number
+  rot: number
+  fill: string
+  delay?: string
+  reverse?: boolean
+}
+
+/** Just shapes stacked — offset so they overlap, not nested on center. */
+const COLOR: Piece[] = [
+  { sides: 5, left: '6%', top: '18%', scale: 0.7, rot: -12, fill: '#7ec8ff', delay: '0s' },
+  { sides: 4, left: '28%', top: '8%', scale: 0.58, rot: 18, fill: '#ffb4a2', delay: '0.4s', reverse: true },
+  { sides: 3, left: '10%', top: '32%', scale: 0.64, rot: -6, fill: '#ffe08a', delay: '0.8s' },
+  { sides: 5, left: '32%', top: '28%', scale: 0.54, rot: 14, fill: '#9aefc8', delay: '0.2s', reverse: true },
+  { sides: 4, left: '20%', top: '40%', scale: 0.46, rot: -20, fill: '#d4b4ff', delay: '0.6s' },
+  { sides: 3, left: '40%', top: '42%', scale: 0.38, rot: 10, fill: '#ff9aad', delay: '1s', reverse: true },
+]
+
+const MONO: Piece[] = COLOR.map((p, i) => ({
+  ...p,
+  fill: `rgba(255,255,255,${(0.92 - i * 0.1).toFixed(2)})`,
+}))
+
 /**
- * Soft overlapping blobs with rigid motion: shake, jab, tick-spin.
+ * Huey as hard polygons stacked on each other (triangle → pentagon).
  */
 export default function HueyAvatar({
   size = 'md',
@@ -18,59 +59,16 @@ export default function HueyAvatar({
   label = 'Huey',
   variant = 'mono',
 }: {
-  size?: HueyAvatarSize
+  size?: HueyAvatarSize | number
   active?: boolean
   label?: string
   variant?: HueyAvatarVariant
 }) {
-  const px = SIZES[size]
-  const color = variant === 'color'
+  const px = typeof size === 'number' ? size : SIZES[size]
+  const pieces = variant === 'color' ? COLOR : MONO
   const reduce =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-  const motion = (
-    name: string,
-    duration: string,
-    timing: string,
-    extra?: CSSProperties,
-  ): CSSProperties =>
-    reduce
-      ? { ...extra }
-      : {
-          ...extra,
-          animation: `${name} ${duration} ${timing} infinite`,
-        }
-
-  const dur = (fast: string, slow: string) => (active ? fast : slow)
-
-  const blob = (
-    left: string,
-    top: string,
-    w: number,
-    h: number,
-    fill: string,
-    anim: string,
-    speed: [string, string],
-    timing: string,
-    opacity = 0.75,
-  ) => (
-    <div
-      aria-hidden="true"
-      style={motion(anim, dur(speed[0], speed[1]), timing, {
-        position: 'absolute',
-        left,
-        top,
-        width: px * w,
-        height: px * h,
-        borderRadius: '50%',
-        background: fill,
-        opacity,
-        filter: `blur(${Math.max(1, px * 0.04)}px)`,
-        mixBlendMode: 'screen',
-      })}
-    />
-  )
 
   return (
     <div
@@ -86,41 +84,41 @@ export default function HueyAvatar({
         overflow: 'visible',
         background: 'transparent',
         opacity: active ? 1 : 0.92,
-        transition: 'opacity 320ms ease',
+        transition: 'opacity 280ms ease',
       }}
     >
-      <div
-        aria-hidden="true"
-        style={{
+      {pieces.map((p, i) => {
+        const dim = px * p.scale
+        const shell: CSSProperties = {
           position: 'absolute',
-          inset: '6%',
-          borderRadius: '50%',
-          background: color
-            ? 'radial-gradient(circle at 40% 40%, rgba(255,255,255,0.12), transparent 70%)'
-            : 'radial-gradient(circle at 40% 40%, rgba(255,255,255,0.1), transparent 70%)',
-          pointerEvents: 'none',
-        }}
-      />
-
-      {color ? (
-        <>
-          {blob('8%', '18%', 0.55, 0.55, 'rgba(64, 180, 255, 0.55)', 'huey-shake', ['0.55s', '0.9s'], 'steps(2)', 0.8)}
-          {blob('38%', '8%', 0.5, 0.5, 'rgba(255, 140, 110, 0.5)', 'huey-jab', ['1.1s', '1.8s'], 'steps(3)', 0.75)}
-          {blob('22%', '42%', 0.58, 0.58, 'rgba(255, 200, 80, 0.48)', 'huey-tick', ['1.4s', '2.2s'], 'steps(4)', 0.72)}
-          {blob('48%', '40%', 0.48, 0.48, 'rgba(90, 220, 190, 0.5)', 'huey-shake', ['0.7s', '1.1s'], 'steps(2)', 0.7)}
-          {blob('28%', '28%', 0.42, 0.42, 'rgba(180, 130, 255, 0.45)', 'huey-jab', ['0.95s', '1.5s'], 'steps(3)', 0.68)}
-          {blob('15%', '55%', 0.36, 0.36, 'rgba(120, 200, 255, 0.4)', 'huey-spin-rigid', ['2.4s', '4s'], 'linear', 0.65)}
-          {blob('55%', '22%', 0.34, 0.34, 'rgba(255, 170, 130, 0.42)', 'huey-spin-rigid', ['3.2s', '5.2s'], 'linear', 0.62)}
-        </>
-      ) : (
-        <>
-          {blob('10%', '20%', 0.52, 0.52, 'rgba(255,255,255,0.28)', 'huey-shake', ['0.65s', '1s'], 'steps(2)', 0.7)}
-          {blob('40%', '12%', 0.48, 0.48, 'rgba(255,255,255,0.22)', 'huey-jab', ['1.2s', '1.9s'], 'steps(3)', 0.65)}
-          {blob('24%', '44%', 0.55, 0.55, 'rgba(255,255,255,0.2)', 'huey-tick', ['1.5s', '2.4s'], 'steps(4)', 0.6)}
-          {blob('48%', '38%', 0.44, 0.44, 'rgba(255,255,255,0.18)', 'huey-spin-rigid', ['2.8s', '4.5s'], 'linear', 0.55)}
-          {blob('30%', '30%', 0.4, 0.4, 'rgba(255,255,255,0.16)', 'huey-shake', ['0.8s', '1.2s'], 'steps(2)', 0.5)}
-        </>
-      )}
+          left: p.left,
+          top: p.top,
+          width: dim,
+          height: dim,
+          transform: `rotate(${p.rot}deg)`,
+          zIndex: i + 1,
+        }
+        const face: CSSProperties = {
+          width: '100%',
+          height: '100%',
+          background: p.fill,
+          clipPath: clipPath(p.sides),
+          WebkitClipPath: clipPath(p.sides),
+          ...(reduce
+            ? {}
+            : {
+                animation: `huey-rock ${active ? '3.2s' : '5.5s'} ease-in-out infinite${
+                  p.reverse ? ' reverse' : ''
+                }`,
+                animationDelay: p.delay ?? '0s',
+              }),
+        }
+        return (
+          <div key={i} aria-hidden="true" style={shell}>
+            <div style={face} />
+          </div>
+        )
+      })}
     </div>
   )
 }
